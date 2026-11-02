@@ -13,3 +13,5 @@ data/*
 artifacts/*.joblib
 artifacts/*.pkl
 artifacts/*.model
+group19_nids_predictions.csv
+nids_predictions.csv
