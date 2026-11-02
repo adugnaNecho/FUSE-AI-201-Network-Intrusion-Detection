@@ -50,11 +50,11 @@ if upload is not None:
     try:
         input_df = pd.read_csv(upload)
         st.write(f"Uploaded {len(input_df):,} record(s).")
-        st.dataframe(input_df.head(5), use_container_width=True)
+        st.dataframe(input_df.head(5), width="stretch")
         if model is not None and st.button("Predict intrusion class", type="primary"):
             results = predict_records(model, input_df)
             st.subheader("2. Prediction results")
-            st.dataframe(results, use_container_width=True)
+            st.dataframe(results, width="stretch")
             st.download_button(
                 "Download predictions CSV",
                 data=results.to_csv(index=False).encode("utf-8"),
