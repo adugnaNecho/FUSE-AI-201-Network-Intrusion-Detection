@@ -1,0 +1,230 @@
+{
+  "project": "Group 19 NSL-KDD multi-class NIDS",
+  "model": "RandomForestClassifier with SMOTENC preprocessing pipeline",
+  "selected_parameters": {
+    "model__n_estimators": 250,
+    "model__max_depth": 20,
+    "model__min_samples_split": 5
+  },
+  "cv_macro_f1": null,
+  "random_state": 42,
+  "dataset": "NSL-KDD KDDTrain+ / KDDTest+",
+  "training_records": 103738,
+  "validation_records": 22235,
+  "test_records": 22544,
+  "features": 41,
+  "classes": [
+    "Normal",
+    "DoS",
+    "Probe",
+    "U2R",
+    "R2L"
+  ],
+  "python_version": "3.12.3",
+  "numpy_version": "2.3.5",
+  "pandas_version": "2.2.3",
+  "scikit_learn_version": "1.8.0",
+  "validation": {
+    "split": "validation",
+    "records": 22235,
+    "accuracy": 0.9989206206431303,
+    "macro_precision": 0.9716600806368865,
+    "macro_recall": 0.9946199242091588,
+    "macro_f1": 0.9825997382981807,
+    "per_class": {
+      "Normal": {
+        "precision": 0.9989904938167746,
+        "recall": 0.9989904938167746,
+        "f1-score": 0.9989904938167746,
+        "support": 11887.0
+      },
+      "DoS": {
+        "precision": 0.9998766193707588,
+        "recall": 0.999753269183321,
+        "f1-score": 0.9998149404725186,
+        "support": 8106.0
+      },
+      "Probe": {
+        "precision": 0.998539435248296,
+        "recall": 0.9970831307729704,
+        "f1-score": 0.9978107516419362,
+        "support": 2057.0
+      },
+      "U2R": {
+        "precision": 0.9,
+        "recall": 1.0,
+        "f1-score": 0.9473684210526315,
+        "support": 9.0
+      },
+      "R2L": {
+        "precision": 0.9608938547486033,
+        "recall": 0.9772727272727273,
+        "f1-score": 0.9690140845070423,
+        "support": 176.0
+      },
+      "accuracy": 0.9989206206431303,
+      "macro avg": {
+        "precision": 0.9716600806368865,
+        "recall": 0.9946199242091588,
+        "f1-score": 0.9825997382981807,
+        "support": 22235.0
+      },
+      "weighted avg": {
+        "precision": 0.998930191740988,
+        "recall": 0.9989206206431303,
+        "f1-score": 0.9989237426696833,
+        "support": 22235.0
+      }
+    },
+    "false_positive_rate_ovr": {
+      "Normal": 0.0011596443757247777,
+      "DoS": 7.077641729775638e-05,
+      "Probe": 0.0001486767766874814,
+      "U2R": 4.499235130027895e-05,
+      "R2L": 0.00031733079468697584
+    },
+    "confusion_matrix": [
+      [
+        11875,
+        1,
+        3,
+        1,
+        7
+      ],
+      [
+        2,
+        8104,
+        0,
+        0,
+        0
+      ],
+      [
+        6,
+        0,
+        2051,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        9,
+        0
+      ],
+      [
+        4,
+        0,
+        0,
+        0,
+        172
+      ]
+    ],
+    "inference_total_seconds": 0.4129933999993227,
+    "inference_ms_per_record": 0.018574022936780874
+  },
+  "official_test": {
+    "split": "official_test",
+    "records": 22544,
+    "accuracy": 0.7461852377572746,
+    "macro_precision": 0.7934698030314955,
+    "macro_recall": 0.48706823299637936,
+    "macro_f1": 0.5151010737642621,
+    "per_class": {
+      "Normal": {
+        "precision": 0.6429592322874839,
+        "recall": 0.9728143342601174,
+        "f1-score": 0.7742173414194394,
+        "support": 9711.0
+      },
+      "DoS": {
+        "precision": 0.9611307420494699,
+        "recall": 0.7656836461126005,
+        "f1-score": 0.8523464895918824,
+        "support": 7460.0
+      },
+      "Probe": {
+        "precision": 0.8644366197183099,
+        "recall": 0.5352470930232558,
+        "f1-score": 0.6611310592459605,
+        "support": 2752.0
+      },
+      "U2R": {
+        "precision": 0.5454545454545454,
+        "recall": 0.08955223880597014,
+        "f1-score": 0.15384615384615385,
+        "support": 67.0
+      },
+      "R2L": {
+        "precision": 0.9533678756476683,
+        "recall": 0.07204385277995301,
+        "f1-score": 0.13396432471787403,
+        "support": 2554.0
+      },
+      "accuracy": 0.7461852377572746,
+      "macro avg": {
+        "precision": 0.7934698030314955,
+        "recall": 0.48706823299637936,
+        "f1-score": 0.5151010737642621,
+        "support": 22544.0
+      },
+      "weighted avg": {
+        "precision": 0.8101574266699428,
+        "recall": 0.7461852377572746,
+        "f1-score": 0.7118885143524505,
+        "support": 22544.0
+      }
+    },
+    "false_positive_rate_ovr": {
+      "Normal": 0.408789838697109,
+      "DoS": 0.015314240254574384,
+      "Probe": 0.011671382376717866,
+      "U2R": 0.00022244961516216578,
+      "R2L": 0.00045022511255627816
+    },
+    "confusion_matrix": [
+      [
+        9447,
+        67,
+        193,
+        1,
+        3
+      ],
+      [
+        1719,
+        5712,
+        29,
+        0,
+        0
+      ],
+      [
+        1115,
+        164,
+        1473,
+        0,
+        0
+      ],
+      [
+        55,
+        0,
+        0,
+        6,
+        6
+      ],
+      [
+        2357,
+        0,
+        9,
+        4,
+        184
+      ]
+    ],
+    "inference_total_seconds": 0.38318340000114404,
+    "inference_ms_per_record": 0.016997134492598653
+  },
+  "notes": [
+    "SMOTENC creates synthetic minority samples inside the training pipeline only.",
+    "KDDTest+ is held out from model fitting and hyperparameter selection.",
+    "Benchmark results are not evidence of live enterprise network performance."
+  ]
+}
