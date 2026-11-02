@@ -4,6 +4,7 @@ import hashlib
 import io
 
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 from nids_core import DEFAULT_MODEL_PATH, FEATURE_COLUMNS, load_model, predict_records
@@ -13,6 +14,7 @@ from nids_dashboard import (
     confusion_matrix_frame,
     fpr_frame,
     load_evaluation,
+    METRIC_LABELS,
     metrics_comparison_frame,
     normal_vs_attack_profile,
     prediction_distribution,
@@ -102,8 +104,33 @@ def render_dashboard(evaluation: dict, evaluation_source: str):
     st.subheader("Validation versus independent-test performance")
     comparison = metrics_comparison_frame(evaluation)
     if not comparison.empty:
-        st.bar_chart(comparison, y=list(comparison.columns), height=280)
-        st.caption("The gap between validation and KDDTest+ scores is material. Independent-test results are the more conservative generalization estimate.")
+        comparison_figure = px.bar(
+            comparison,
+            x="Metric",
+            y="Score",
+            color="Dataset",
+            barmode="group",
+            text_auto=".1%",
+            category_orders={
+                "Metric": list(METRIC_LABELS.values()),
+                "Dataset": ["KDDTest+", "Validation"],
+            },
+            labels={"Score": "Score", "Metric": "Evaluation metric", "Dataset": "Dataset"},
+        )
+        comparison_figure.update_yaxes(
+            range=[0, 1],
+            tickformat=".0%",
+            title="Score",
+        )
+        comparison_figure.update_traces(textposition="outside", cliponaxis=False)
+        comparison_figure.update_layout(
+            barmode="group",
+            yaxis_range=[0, 1],
+            legend_title_text="Dataset",
+            margin=dict(t=65, r=20, b=20, l=20),
+        )
+        st.plotly_chart(comparison_figure, width="stretch", config={"displaylogo": False})
+        st.caption("Bars are grouped (not stacked). Each score is shown as a proportion on a 0–100% axis. The gap between validation and KDDTest+ scores is material; independent-test results are the more conservative generalization estimate.")
     else:
         st.warning("No validation/test comparison values were found in the evaluation evidence.")
 

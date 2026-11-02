@@ -44,10 +44,32 @@ def test_load_evaluation_falls_back_to_reported_snapshot(tmp_path):
     assert loaded["official_test"]["macro_f1"] == REPORTED_RUN_SNAPSHOT["official_test"]["macro_f1"]
 
 
-def test_metrics_comparison_uses_validation_and_test_values():
+def test_metrics_comparison_returns_long_form_values_for_grouped_bars():
     frame = metrics_comparison_frame(REPORTED_RUN_SNAPSHOT)
-    assert list(frame.columns) == ["Validation", "KDDTest+"]
-    assert frame.loc["Macro F1", "KDDTest+"] == REPORTED_RUN_SNAPSHOT["official_test"]["macro_f1"]
+    assert list(frame.columns) == ["Metric", "Dataset", "Score"]
+    assert len(frame) == 8
+    test_f1 = frame.loc[
+        frame["Metric"].eq("Macro F1") & frame["Dataset"].eq("KDDTest+"),
+        "Score",
+    ].iloc[0]
+    validation_f1 = frame.loc[
+        frame["Metric"].eq("Macro F1") & frame["Dataset"].eq("Validation"),
+        "Score",
+    ].iloc[0]
+    assert test_f1 == REPORTED_RUN_SNAPSHOT["official_test"]["macro_f1"]
+    assert validation_f1 == REPORTED_RUN_SNAPSHOT["validation"]["macro_f1"]
+    assert frame["Score"].between(0.0, 1.0).all()
+
+
+def test_metrics_comparison_ignores_invalid_or_out_of_range_scores():
+    payload = {
+        "validation": {"accuracy": 1.2, "macro_f1": float("nan")},
+        "official_test": {"accuracy": 0.75, "macro_f1": 0.5},
+    }
+    frame = metrics_comparison_frame(payload)
+    assert len(frame) == 2
+    assert set(frame["Metric"]) == {"Accuracy", "Macro F1"}
+    assert set(frame["Dataset"]) == {"KDDTest+"}
 
 
 def test_class_metrics_only_shows_recall_when_other_metrics_are_unavailable():

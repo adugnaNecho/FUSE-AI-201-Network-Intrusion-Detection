@@ -75,19 +75,24 @@ def load_evaluation(path: str | Path) -> tuple[dict[str, Any], str]:
 
 
 def metrics_comparison_frame(evaluation: dict[str, Any]) -> pd.DataFrame:
-    """Return validation/test metric values suitable for a Streamlit bar chart."""
+    """Return validation/test metrics in long form for grouped comparison charts.
+
+    Scores remain proportions in the inclusive range [0, 1]. The returned
+    columns are ``Metric``, ``Dataset`` and ``Score``, which can be passed
+    directly to Plotly Express with ``barmode="group"``. Long form avoids the
+    misleading stacked-bar interpretation of summing validation and test scores.
+    """
     rows: list[dict[str, Any]] = []
     for key, label in METRIC_LABELS.items():
-        row: dict[str, Any] = {"Metric": label}
         for split_key, split_label in (("validation", "Validation"), ("official_test", "KDDTest+")):
-            value = evaluation.get(split_key, {}).get(key)
-            if isinstance(value, (int, float)):
-                row[split_label] = float(value)
-        if len(row) > 1:
-            rows.append(row)
-    if not rows:
-        return pd.DataFrame(columns=["Validation", "KDDTest+"]).rename_axis("Metric")
-    return pd.DataFrame(rows).set_index("Metric")
+            split = evaluation.get(split_key, {})
+            value = split.get(key) if isinstance(split, dict) else None
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                score = float(value)
+                if math.isfinite(score) and 0.0 <= score <= 1.0:
+                    rows.append({"Metric": label, "Dataset": split_label, "Score": score})
+
+    return pd.DataFrame(rows, columns=["Metric", "Dataset", "Score"])
 
 
 def class_metrics_frame(evaluation: dict[str, Any], split_key: str = "official_test") -> pd.DataFrame:
