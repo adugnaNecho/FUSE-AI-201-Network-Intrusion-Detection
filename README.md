@@ -1,38 +1,37 @@
 # Group 19 | Machine Learning-Based Network Intrusion Detection
 
-**Course:** FUSE AI-201 - AI Model Development and Implementation  
-**Assignment:** Module 6 - AI Deployment, Monitoring, Support and Maintenance  
+**Course:** FUSE AI-201 — AI Model Development and Implementation  
+**Assignment:** Module 6 — AI Deployment, Monitoring, Support and Maintenance  
 **Project:** Real-Time Network Intrusion Detection Using Machine Learning-Based Multi-Class Classification
 
-> **Public Streamlit demonstration:** [https://group19-network-intrusion-detection.streamlit.app/](https://group19-network-intrusion-detection.streamlit.app/)  
-> **Public GitHub repository:** [https://github.com/adugnaNecho/Group19-network-intrusion-detection](https://github.com/adugnaNecho/Group19-network-intrusion-detection)
->
-> **Prototype scope:** This is a research prototype that classifies NSL-KDD-style connection records. It does not capture live packets, block traffic, or provide production-grade security monitoring. Predictions require analyst interpretation; confidence scores are not calibrated guarantees.
+> **Live Streamlit prototype:** https://group19-network-intrusion-detection.streamlit.app/  
+> **Public GitHub repository:** https://github.com/adugnaNecho/Group19-network-intrusion-detection  
+> **Source hotfix commit:** `8941226` — FPR chart data handling and table fallback.
+
+**Prototype scope:** This research prototype classifies uploaded NSL-KDD-style connection records. It does not capture live packets, block traffic, or provide production-grade security monitoring. The maximum class probability displayed as confidence is not a calibrated guarantee.
 
 ## 1. Project purpose
 
-The prototype classifies connection-level records into five classes: **Normal, DoS, Probe, U2R, and R2L**. It uses a Random Forest model in an imbalanced-learn pipeline with SMOTENC, numerical imputation/scaling, and categorical imputation/one-hot encoding.
+The prototype classifies connection-level records into five classes: **Normal, DoS, Probe, U2R, and R2L**. It uses a Random Forest model in an imbalanced-learn pipeline with SMOTENC, numeric imputation/scaling, and categorical imputation/one-hot encoding.
 
-The deployed Streamlit interface accepts a CSV containing the 41 NSL-KDD model features and returns the predicted class, maximum class probability (displayed as confidence), threat-severity label, and probabilities for all five classes. It also provides a sample input download and a prediction-results CSV download. The Analytics Dashboard tab shows validation-versus-independent-test metrics, class-wise test results, the measured 5 × 5 confusion matrix and one-versus-rest false-positive rates when these are present in `artifacts/evaluation.json`. The validation/test comparison uses grouped bars on a 0–100% axis. Class metrics, recall and false-positive-rate charts, and confusion-matrix rows/columns share the fixed order Normal, DoS, Probe, U2R, R2L; support counts display as integers and false-positive rates as percentages. After a CSV is scored, the dashboard also summarizes predicted class/severity counts, uploaded byte/count features by record order, and maximum class probabilities. An optional FastAPI interface is included in the source repository.
+The Streamlit interface accepts a CSV containing the 41 NSL-KDD model features and returns a predicted class, maximum class probability (displayed as confidence), threat-severity label, and probabilities for all five classes. It provides a sample input download and prediction-results CSV download. The Analytics Dashboard presents benchmark results and uploaded-record summaries.
 
 ## 2. Dataset and evaluation
 
-Training and benchmark evaluation use public NSL-KDD files (`KDDTrain+` and `KDDTest+`) retrieved with KaggleHub (`hassan06/nslkdd`). The recorded dataset contains 125,973 training records and 22,544 independent test records. The 41 model input features are mapped to five target classes.
+Training and benchmark evaluation use public NSL-KDD files (`KDDTrain+` and `KDDTest+`) retrieved through KaggleHub (`hassan06/nslkdd`). The model uses 41 connection features and consolidates detailed labels into five target classes. The dataset contains 125,973 training records and 22,544 independent test records.
 
-A stratified validation split is made from `KDDTrain+` with `test_size=0.1765` and `random_state=42`: 103,738 training records and 22,235 validation records. `KDDTest+` is reserved for final evaluation. SMOTENC is included inside the model training pipeline; validation and independent test rows are not oversampled.
+A stratified validation split is created from `KDDTrain+` with `test_size=0.1765` and `random_state=42`: 103,738 training records and 22,235 validation records. `KDDTest+` is reserved for final evaluation. SMOTENC is part of the fitting pipeline and is used only on training data.
 
-### Latest training run
+### Latest reported training run (November 2–3, 2026)
 
-The values below are from the successful `python train_model.py` execution reported by the group.
-
-| Metric | Validation split | Independent KDDTest+ |
+| Metric | Validation | Independent KDDTest+ |
 |---|---:|---:|
 | Accuracy | 99.89% | 74.62% |
 | Macro precision | 97.17% | 79.35% |
 | Macro recall | 99.46% | 48.71% |
 | Macro F1 | 98.26% | 51.51% |
 
-Independent-test class recall:
+Independent-test recall by class:
 
 | Class | Recall |
 |---|---:|
@@ -42,75 +41,65 @@ Independent-test class recall:
 | U2R | 8.96% |
 | R2L | 7.20% |
 
-The gap between validation and independent-test scores is substantial. In particular, U2R and R2L recall are low. The prototype should not be used as the sole security control or for automatic blocking. The latest training output did not print the overall maximum class false-positive rate; refer to `artifacts/evaluation.json` for the recorded class-wise false-positive rates before quoting that metric.
+The validation-to-test gap is substantial. U2R and R2L recall are especially low. The prototype must not be used as the sole security control or for automatic blocking.
 
 ## 3. Public prototype
 
-**Live application:** [https://group19-network-intrusion-detection.streamlit.app/](https://group19-network-intrusion-detection.streamlit.app/)  
-**Source repository:** [https://github.com/adugnaNecho/Group19-network-intrusion-detection](https://github.com/adugnaNecho/Group19-network-intrusion-detection)
+**Application:** https://group19-network-intrusion-detection.streamlit.app/  
+**Repository:** https://github.com/adugnaNecho/Group19-network-intrusion-detection
 
-The group reports that the hosted application was opened, a CSV was uploaded, and a prediction was generated. The supplied demonstration screenshot shows one illustrative record classified as **DoS**, with displayed confidence **1.00** and severity **High**. This is a functional interface demonstration for one record, not an independent measurement of prediction correctness, calibration, or generalization.
+The group reports that the hosted application accepted a CSV upload and generated a prediction. The supplied screenshot shows one illustrative record classified as **DoS**, with displayed maximum class probability **1.00** and severity **High**. This demonstrates the interface flow for that example only; it does not prove that the prediction is correct or that the score is calibrated.
 
-### User workflow
+### Application workflow
 
 1. Open the Streamlit application.
-2. Download the sample 41-feature CSV or prepare a CSV with the complete required feature schema.
+2. Download the sample 41-feature CSV or prepare a CSV with the complete input schema.
 3. Upload the CSV.
 4. Select **Predict intrusion class**.
-5. Review predicted class, confidence, threat severity, and per-class probabilities.
-6. Download the prediction results as CSV.
+5. Review predicted class, maximum class probability, severity, and class probabilities.
+6. Download prediction results as CSV.
 
-![Streamlit prototype demonstration](docs/assets/streamlit_prediction_demo.png)
+## 4. Analytics dashboard
 
-*Figure: Group-provided screenshot of the deployed interface. The shown prediction is a one-record example and should not be interpreted as proof that the label is correct.*
+The dashboard includes:
+- Grouped validation-versus-independent-test bars on a 0–100% axis.
+- Accuracy, macro precision, macro recall, and macro F1 cards.
+- Class-wise precision, recall, F1, and support when present in `artifacts/evaluation.json`.
+- The measured 5 × 5 confusion matrix and one-versus-rest FPR when present in the evaluation artifact.
+- Consistent class order: Normal, DoS, Probe, U2R, R2L.
+- Integer support counts and percentage-formatted FPR displays.
+- Uploaded-record class/severity counts, traffic-feature profiles by record order, and maximum class probabilities after prediction.
 
-## 4. Repository contents
+The dashboard does not fabricate a confusion matrix or class-level values if they are absent from the source artifact. If Plotly cannot render the FPR chart, the app falls back to a measured FPR table. NSL-KDD has no timestamp in the 41-feature schema, so uploaded-record plots use record order, not time. See `docs/analytics_dashboard_guide.md` and `FPR_CHART_HOTFIX.md`.
 
-```text
-.
-├── app.py                       # Streamlit CSV prediction and analytics dashboard
-├── nids_dashboard.py            # Evaluation and uploaded-record analytics helpers
-├── api.py                       # Optional FastAPI inference API
-├── nids_core.py                 # 41-feature schema, validation and inference
-├── train_model.py               # Reproducible training, evaluation and export
-├── examples/sample_input.csv    # Constructed illustrative input row
-├── notebooks/                   # Module 5 implementation notebook
-├── artifacts/                   # Model and evaluation artifacts in public GitHub repo
-├── docs/                        # Portfolio, retrospective, plan, statement, video script
-├── tests/                       # Input, dashboard and API tests
-├── Dockerfile
-├── requirements.txt
-└── requirements-dev.txt
-```
+## 5. Model and implementation
 
-The actual `.joblib` model, class mapping, `evaluation.json`, and SHA-256 sidecar are published in the public GitHub repository under `artifacts/`. The portable ZIP supplied with this documentation includes the source and evidence screenshot, but not a second copy of the binary model; use the public repository as the canonical model-artifact location.
+The final estimator is a Random Forest inside an imbalanced-learn pipeline. The reported selected configuration used 250 trees, maximum depth 20, and minimum split 5. SMOTENC handles mixed categorical/numeric minority examples during fitting; numeric values are imputed and standardized; categorical fields are imputed and one-hot encoded. The complete preprocessing/model pipeline is exported as a single joblib artifact.
 
-## 5. Run locally
+The optional FastAPI API provides `/health`, `/schema`, and `POST /predict`; Docker packaging is included. FastAPI and Docker are optional implementation paths and are not claimed as separately hosted public services.
 
-The group's tested local environment is **Python 3.12.3**. Keep model dependencies aligned with the versions used to serialize the model because scikit-learn/joblib artifacts can be version-sensitive.
+## 6. Installation and local use
+
+The group's tested local environment is **Python 3.12.3**. Keep core model dependencies aligned with the versions used to serialize the model.
 
 ```bash
 python -m venv .venv
 # Windows Git Bash: source .venv/Scripts/activate
-# Windows PowerShell: .venv\Scripts\Activate.ps1
-# macOS/Linux: source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-The training/inference versions used in the group's local environment were NumPy 2.3.5, pandas 2.2.3, scikit-learn 1.8.0, imbalanced-learn 0.14.1, joblib 1.5.3, and Streamlit 1.66.1. `requirements.txt` pins the core model packages and Streamlit.
+### Train and export (optional)
 
-### 5.1 Train and export (optional)
-
-If rebuilding the model, place `KDDTrain+.txt` and `KDDTest+.txt` in `data/`, or allow KaggleHub to download the public dataset:
+Place `KDDTrain+.txt` and `KDDTest+.txt` in `data/`, or allow KaggleHub to retrieve the public dataset:
 
 ```bash
 python train_model.py
 ```
 
-This creates the model pipeline, class mapping, evaluation report, and SHA-256 file in `artifacts/`.
+This exports the model pipeline, class mapping, evaluation report, and SHA-256 sidecar under `artifacts/`.
 
-### 5.2 Run Streamlit locally
+### Run Streamlit
 
 ```bash
 streamlit run app.py
@@ -118,58 +107,45 @@ streamlit run app.py
 
 Open the local URL printed by Streamlit, normally `http://localhost:8501`.
 
-### 5.3 Run the optional FastAPI endpoint
+### Run optional FastAPI
 
 ```bash
 uvicorn api:app --reload
 ```
 
-- `GET /health` reports whether the model artifact is present.
-- `GET /schema` returns the required feature names.
-- `POST /predict` accepts JSON records with the required features.
-- `/docs` provides interactive API documentation.
+Interactive API documentation is available at `/docs` while the API is running locally.
 
-### 5.4 Run tests
+### Run tests
 
 ```bash
 pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-The latest dashboard refinement was checked with **28 automated tests passed** in the preparation environment: original feature/input validation and API tests plus dashboard metric loading, class distribution, traffic-profile and confusion-matrix handling. These software tests are not a substitute for independent model performance evaluation.
+**Final source-package QA reported:** 29 tests passed. Rerun this command in the team's Windows environment after copying final files; software tests are not a substitute for predictive-performance evaluation.
 
-## 6. Analytics dashboard
+## 7. Model artifacts
 
-The dashboard has two distinct evidence sources. Benchmark metrics, per-class results, confusion matrix and false-positive rates come from the `evaluation.json` emitted by `train_model.py`; if that artifact is missing, the app uses a clearly disclosed snapshot of the latest reported training metrics and does not invent matrix/FPR values. The validation/test comparison uses grouped bars rather than stacked bars. Class metrics, recall, false-positive-rate charts and confusion-matrix axes use the same fixed class order: Normal, DoS, Probe, U2R, R2L. Support values are formatted as integer counts and false-positive rates as percentages. Uploaded-record charts are calculated from the current CSV and prediction output. The uploaded-record byte/count plot uses record order because NSL-KDD has no timestamp in this schema; byte values are log-transformed for display only. See `docs/analytics_dashboard_guide.md`.
+The trained `.joblib` pipeline, class mapping, `evaluation.json`, and SHA-256 sidecar are stored in the repository's `artifacts/` directory. This directory is the canonical model-artifact location. Load joblib files only from a trusted source.
 
-## 7. Deployment and maintenance
+## 8. Deployment and maintenance status
 
-The Streamlit application is deployed at [https://group19-network-intrusion-detection.streamlit.app/](https://group19-network-intrusion-detection.streamlit.app/) from the public GitHub repository. The hosted app provides CSV-based inference. GitHub provides source control and versioned artifacts; Streamlit Community Cloud hosts the interactive application. The FastAPI service and Dockerfile are optional deployment paths, not claimed as separately hosted production services.
+The Streamlit app URL is listed above. GitHub stores source and model artifacts; Streamlit Community Cloud hosts the interactive app. The FPR chart hotfix was committed as source commit `8941226`. The group must confirm that Streamlit Community Cloud rebuilt from that commit and that the dashboard/FPR table fallback opens without an unhandled error.
 
-The monitoring, drift-detection, retraining, shadow-deployment, fallback IDS, privacy and support processes in `docs/monitoring_support_maintenance.md` are proposed plans for a future controlled pilot. They are not active continuous monitoring services in the current prototype.
+The monitoring, drift detection, retraining, shadow deployment, fallback IDS, privacy and support processes in `docs/monitoring_support_maintenance.md` are proposed plans for a future controlled pilot. They are not active continuous-monitoring services in the current prototype.
 
-## 8. Data disclosure and responsible use
+## 9. Data disclosure and responsible use
 
-The training/evaluation dataset is public NSL-KDD benchmark data, not newly collected operational traffic. The repository sample CSV is a constructed illustrative input. SMOTENC generates synthetic minority examples only inside model fitting; the validation split and `KDDTest+` evaluation data are not oversampled. Raw benchmark files are not redistributed by this repository.
+Training/evaluation use public NSL-KDD benchmark data, not newly collected live operational traffic. The included sample CSV is a constructed illustrative input. SMOTENC generates synthetic minority-class observations during training only; validation and independent `KDDTest+` rows are not oversampled. Raw benchmark files are not redistributed in this repository.
 
-Do not upload confidential traffic records or sensitive network details to the public demonstration. The interface is a research proof of concept and should not be used to block traffic or make security decisions without independent validation and analyst review.
+Do not upload confidential network records or sensitive network details to the public demonstration. The prototype should not block traffic or be used as the sole basis for security decisions. High-impact predictions require independent analyst review.
 
-## 9. Limitations and future work
+## 10. Team and Canvas submission
 
-- The model has a large validation-to-independent-test generalization gap.
-- U2R and R2L recall on `KDDTest+` is low (8.96% and 7.20%).
-- NSL-KDD is a benchmark dataset and does not establish reliable detection of modern or zero-day attacks.
-- The application classifies uploaded connection records; it does not capture packets or block traffic.
-- Future work should investigate rare-class errors, class-sensitive objectives, calibration, newer representative data, and controlled pilot evaluation with verified labels.
+The Module 5 notebook lists five members. It does not assign individual work packages; the group must complete and confirm actual roles in `docs/team_contributions.md`. The 8–9 minute video script is in `docs/module6_video_script.md`; the group must record and upload the actual video.
 
-## 10. Contributors
+The supplied assignment page showed a Canvas header deadline of **November 11, 2026, 9:59 a.m.**, while the embedded instructions stated **November 6, 2026**. Confirm the authoritative deadline in Canvas.
 
-The Module 5 notebook lists five group members. Individual work-package assignments must be confirmed by the group in `docs/team_contributions.md` before submission; no individual roles are inferred in this README.
+## 11. Dataset attribution
 
-## 11. Dataset reference
-
-The notebook uses KaggleHub dataset `hassan06/nslkdd`. A public NSL-KDD mirror is documented at [jmnwong/NSL-KDD-Dataset](https://github.com/jmnwong/NSL-KDD-Dataset). Original reference: M. Tavallaee, E. Bagheri, W. Lu and A. A. Ghorbani, “A Detailed Analysis of the KDD CUP 99 Data Set,” IEEE Symposium on Computational Intelligence for Security and Defense Applications, 2009. Review dataset-host terms before redistributing raw benchmark files.
-
-## 12. License
-
-The MIT license in this repository applies to project code and documentation authored by Group 19. Third-party datasets and components remain subject to their own terms.
+The notebook uses KaggleHub dataset `hassan06/nslkdd`. A public NSL-KDD mirror is documented at https://github.com/jmnwong/NSL-KDD-Dataset. Original reference: M. Tavallaee, E. Bagheri, W. Lu and A. A. Ghorbani, “A Detailed Analysis of the KDD CUP 99 Data Set,” IEEE Symposium on Computational Intelligence for Security and Defense Applications, 2009. Review dataset-host terms before redistributing raw benchmark files.

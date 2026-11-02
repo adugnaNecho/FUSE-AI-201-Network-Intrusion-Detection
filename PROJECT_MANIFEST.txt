@@ -1,40 +1,50 @@
-.github/workflows/tests.yml
-.gitignore
-.streamlit/config.toml
-Dockerfile
-LICENSE
-README.md
-api.py
-app.py
-nids_dashboard.py
-artifacts/.gitkeep
-artifacts/README.md
-data/.gitkeep
-docs/Group19_Module6_Project_Portfolio.docx
-docs/Group19_Module6_Project_Portfolio.pdf
-docs/Group19_Module6_Retrospective.docx
-docs/Group19_Module6_Retrospective.pdf
-docs/Group19_Module6_Simulated_Data_Statement.docx
-docs/Group19_Module6_Simulated_Data_Statement.pdf
-docs/assets/streamlit_prediction_demo.png
-docs/evaluation_and_limitations.md
-docs/module6_video_script.md
-docs/monitoring_support_maintenance.md
-docs/simulated_data_statement.md
-docs/submission_checklist.md
-docs/team_contributions.md
-examples/sample_input.csv
-nids_core.py
-notebooks/Group19_Module5_Implementation.ipynb
-requirements-dev.txt
-requirements.txt
-scripts/publish_public_repo.sh
-tests/test_api.py
-tests/test_nids_core.py
-train_model.py
+Group19-network-intrusion-detection — Project Manifest
 
-docs/analytics_dashboard_guide.md
-tests/test_dashboard.py
-DASHBOARD_UPDATE_INSTRUCTIONS.txt
+Application and model
+- app.py — Streamlit CSV prediction application and analytics dashboard
+- api.py — optional FastAPI inference API
+- nids_core.py — schema validation and model inference helpers
+- nids_dashboard.py — evaluation and uploaded-record analytics helpers
+- train_model.py — NSL-KDD training, evaluation and model export
+- artifacts/ — trained model pipeline, class mapping, evaluation JSON and SHA-256 sidecar (canonical in GitHub repository)
 
-docs/test_results.md
+Dataset and sample
+- notebooks/Group19_Module5_Implementation.ipynb — model development notebook
+- examples/sample_input.csv — illustrative 41-feature input sample
+- data/ — local dataset location; raw dataset files are not redistributed
+
+Dashboard and deployment
+- requirements.txt — runtime dependencies (including Plotly)
+- requirements-dev.txt — test dependencies
+- Dockerfile — optional container packaging
+- .streamlit/config.toml — Streamlit configuration
+- .github/workflows/tests.yml — automated test workflow
+- FPR_CHART_HOTFIX.md — FPR chart data schema and fallback notes
+
+Module 6 documentation
+- README.md — project overview, setup, URLs, metrics and scope
+- docs/Group19_Module6_Project_Portfolio.docx/.pdf — project portfolio
+- docs/Group19_Module6_Retrospective.docx/.pdf — one-page retrospective
+- docs/Group19_Module6_Simulated_Data_Statement.docx/.pdf — data disclosure
+- docs/Group19_Module6_Video_Script.docx/.pdf — capstone video script
+- docs/module6_video_script.md — editable video script
+- docs/submission_checklist.md — Canvas deliverable checklist
+- docs/team_contributions.md — member contribution record to be confirmed by the group
+- docs/monitoring_support_maintenance.md — proposed future operational plan
+- docs/evaluation_and_limitations.md — independent evaluation and limitations
+- docs/test_results.md — software-test and demonstration evidence
+- docs/analytics_dashboard_guide.md — dashboard interpretation and usage
+- docs/simulated_data_statement.md — editable data disclosure
+- docs/assets/ — demonstration and dashboard screenshots
+
+Tests
+- tests/test_nids_core.py
+- tests/test_api.py
+- tests/test_dashboard.py
+
+Public links
+- GitHub: https://github.com/adugnaNecho/Group19-network-intrusion-detection
+- Streamlit: https://group19-network-intrusion-detection.streamlit.app/
+
+Safety and scope
+This is a research prototype for uploaded NSL-KDD-style connection records. It does not capture live network packets, block traffic, or provide production-grade monitoring. Do not commit secrets, private traffic captures or confidential data.

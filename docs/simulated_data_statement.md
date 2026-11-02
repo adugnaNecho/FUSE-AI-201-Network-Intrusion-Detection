@@ -1,9 +1,28 @@
-# Dataset and Synthetic Data Statement
+# Simulated Data and Dataset Statement
 
-This prototype uses the public NSL-KDD benchmark dataset, specifically the `KDDTrain+` and `KDDTest+` files retrieved in the Module 5 notebook through KaggleHub (`hassan06/nslkdd`). The benchmark contains labelled connection records and is not a live feed from a current operational network. No private organizational packet captures or personally identifying traffic data are included in this project package.
+**Project:** Real-Time Network Intrusion Detection Using Machine Learning-Based Multi-Class Classification  
+**Group:** Group 19 | FUSE AI-201
 
-The dataset used for model training and evaluation is therefore **public benchmark data, not a wholly synthetic dataset**. The sample CSV distributed with this repository is a constructed illustrative input row used to demonstrate the expected 41-feature interface; it is not presented as an independently observed network event.
+## Dataset used
 
-The training pipeline uses SMOTENC to synthesize additional minority-class training examples. Those synthetic samples are generated only inside the training workflow and are not added to the validation or official test sets. Their use is disclosed because model fitting therefore includes synthetic training observations.
+Training and benchmark evaluation use public NSL-KDD files `KDDTrain+` and `KDDTest+`, obtained through KaggleHub (`hassan06/nslkdd`). The model uses 41 input features from labelled network connection records. This is public benchmark data, not a newly collected live traffic feed or data from a current operational organization.
 
-The benchmark's age and known distribution limitations mean its results do not establish that the model can detect modern, previously unseen or live network attacks. Consult and comply with the dataset host's terms and the original dataset's citation/usage requirements before redistribution. The raw dataset files are intentionally not included in this repository.
+## Synthetic data use
+
+The repository includes a constructed illustrative sample CSV row for demonstrating the expected 41-feature input schema. This row is not claimed to be an observed network event. During model fitting, SMOTENC creates synthetic minority-class observations inside the training pipeline to address class imbalance. These synthetic observations are used for training only. The stratified validation split and independent `KDDTest+` records are not oversampled.
+
+## Hosted demonstration
+
+The hosted application is https://group19-network-intrusion-detection.streamlit.app/. The supplied screenshot shows a sample record uploaded to the interface and a DoS prediction with displayed maximum class probability 1.00 and severity High. This demonstrates the application interaction for that record only; it does not establish that the sample is a real attack, that the prediction is correct, or that the score is calibrated.
+
+## Privacy and limitations
+
+The project repository is not intended to contain private packet captures, customer traffic, credentials or personally identifying network records. Do not upload confidential traffic or sensitive network details to the public application. NSL-KDD is a historical benchmark and does not represent all current enterprise environments or establish reliable detection of modern/zero-day attacks. The application does not capture live packets or block traffic.
+
+## Source and attribution
+
+The training notebook uses KaggleHub dataset `hassan06/nslkdd`. A public NSL-KDD mirror is documented at https://github.com/jmnwong/NSL-KDD-Dataset. Original reference: M. Tavallaee, E. Bagheri, W. Lu and A. A. Ghorbani, “A Detailed Analysis of the KDD CUP 99 Data Set,” IEEE Symposium on Computational Intelligence for Security and Defense Applications, 2009. Raw benchmark files are not redistributed by this project; follow the dataset host's applicable terms.
+
+## Declaration
+
+This project uses public NSL-KDD benchmark records for training and evaluation, a constructed illustrative sample input for interface demonstration, and SMOTENC-generated synthetic minority observations during model fitting only. No model-performance claim in this submission is based on newly collected live operational traffic.
