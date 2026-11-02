@@ -142,9 +142,7 @@ Do not upload confidential network records or sensitive network details to the p
 
 ## 10. Team and Canvas submission
 
-The Module 5 notebook lists five members. It does not assign individual work packages; the group must complete and confirm actual roles in `docs/team_contributions.md`. The 8–9 minute video script is in `docs/module6_video_script.md`; the group must record and upload the actual video.
-
-The supplied assignment page showed a Canvas header deadline of **November 11, 2026, 9:59 a.m.**, while the embedded instructions stated **November 6, 2026**. Confirm the authoritative deadline in Canvas.
+Five members contribute to this assignment and their roles are presented in `docs/team_contributions.md`. The 8–9-minute video script is in `docs/module6_video_script.md`; the group must record and upload the actual video.
 
 ## 11. Dataset attribution
 
