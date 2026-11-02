@@ -61,7 +61,7 @@ The notebook's timing experiment recorded 0.1190 ms per record for a batch of 1,
 
 ## 4. Run locally
 
-Use Python 3.11. Keep Python and package versions aligned between model training and inference because serialized scikit-learn/joblib pipelines can be version-sensitive.
+Use Python 3.12. Keep Python and package versions aligned between model training and inference because serialized scikit-learn/joblib pipelines can be version-sensitive.
 
 ```bash
 python -m venv .venv
