@@ -1,0 +1,11 @@
+# Keep the training and inference environments aligned because joblib artifacts
+# are Python-version and library-version sensitive.
+numpy==2.3.5
+pandas==2.2.3
+scikit-learn==1.8.0
+imbalanced-learn==0.14.1
+joblib==1.5.3
+streamlit>=1.40,<2
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+kagglehub>=0.3,<1

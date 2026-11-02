@@ -1,0 +1,15 @@
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.env
+*.log
+mlruns/
+mlflow.db
+.kaggle/
+data/*
+!data/.gitkeep
+artifacts/*.joblib
+artifacts/*.pkl
+artifacts/*.model
