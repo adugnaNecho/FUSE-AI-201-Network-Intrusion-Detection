@@ -48,7 +48,7 @@ The analytics-dashboard update adds `tests/test_dashboard.py`. In the preparatio
 24 passed in 0.36s
 ```
 
-The expanded tests cover feature schema/input validation, prediction-output formatting with a deterministic test double, API request/schema behavior, evaluation artifact loading, metric comparison, measured confusion-matrix handling, class/severity distributions, uploaded-record traffic profiles, Normal-versus-predicted-attack grouping, and confidence summaries. The group should rerun the expanded suite in its Windows environment after copying the dashboard update. Software tests do not establish the model's predictive accuracy.
+The expanded tests cover feature schema/input validation, prediction-output formatting with a deterministic test double, API request/schema behavior, evaluation artifact loading, grouped metric-comparison data, canonical class ordering across metrics and confusion matrices, support-count integer handling, false-positive-rate ordering, class/severity distributions, uploaded-record traffic profiles, Normal-versus-predicted-attack grouping, and confidence summaries. The group should rerun the expanded suite in its Windows environment after copying the dashboard update. Software tests do not establish the model's predictive accuracy.
 
 ## 3. Hosted Streamlit smoke test
 

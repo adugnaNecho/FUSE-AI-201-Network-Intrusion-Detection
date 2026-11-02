@@ -16,7 +16,7 @@ GROUP 19 NIDS ANALYTICS DASHBOARD UPDATE
 
 4. Run the updated test suite:
    python -m pytest -q
-   Expected in this prepared update: 24 passed.
+   Expected in this prepared update: 28 passed.
 
 5. Run locally:
    streamlit run app.py
@@ -26,12 +26,14 @@ GROUP 19 NIDS ANALYTICS DASHBOARD UPDATE
    - Analytics Dashboard: review KDDTest+ benchmark cards, validation/test comparison,
      class-wise metrics, 5x5 confusion matrix (when evaluation.json is present),
      one-versus-rest FPR, uploaded class/severity distributions, traffic feature
-     profiles and confidence display.
+     profiles and confidence display. The grouped comparison uses a 0–100% axis.
+     Class metrics, recall/FPR charts and confusion-matrix axes share the order
+     Normal, DoS, Probe, U2R, R2L. Support counts are integers; FPR is percent-formatted.
 
 7. Commit and push. To avoid non-fast-forward rejections, synchronize first:
    git fetch origin
    git pull --rebase origin main
-   git add app.py nids_dashboard.py tests/test_dashboard.py README.md PROJECT_MANIFEST.txt docs/analytics_dashboard_guide.md docs/test_results.md docs/submission_checklist.md docs/assets/streamlit_prediction_demo.png
+   git add app.py nids_dashboard.py tests/test_dashboard.py README.md requirements.txt PROJECT_MANIFEST.txt DASHBOARD_UPDATE_INSTRUCTIONS.txt docs/analytics_dashboard_guide.md docs/test_results.md docs/submission_checklist.md docs/assets/streamlit_prediction_demo.png
    git commit -m "Add evidence-based NIDS analytics dashboard"
    git push origin main
 
@@ -48,3 +50,10 @@ DATA AND CLAIMS SAFEGUARDS
 - The NSL-KDD records have no timestamp field in the required 41-feature schema;
   traffic plots use record order, not a time axis.
 - The dashboard is for research demonstration, not production network monitoring.
+
+
+Latest dashboard refinement (class presentation):
+- Support counts are formatted as integers in the class-wise table.
+- Recall and one-versus-rest false-positive rate charts use percentage axes.
+- Class metrics, recall bars, false-positive-rate bars and confusion-matrix rows/columns use the fixed order Normal, DoS, Probe, U2R, R2L.
+- The validation-versus-KDDTest+ comparison remains grouped, with a 0–100% axis.

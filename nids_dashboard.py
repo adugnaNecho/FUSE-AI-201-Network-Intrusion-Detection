@@ -96,7 +96,12 @@ def metrics_comparison_frame(evaluation: dict[str, Any]) -> pd.DataFrame:
 
 
 def class_metrics_frame(evaluation: dict[str, Any], split_key: str = "official_test") -> pd.DataFrame:
-    """Build class-wise metrics only from values present in evaluation evidence."""
+    """Build class-wise metrics in the canonical Normal/DoS/Probe/U2R/R2L order.
+
+    Only values present in the evaluation evidence are displayed. Integral
+    support counts are returned as integers so tables do not show decimal
+    counts such as ``9711.000000``.
+    """
     split = evaluation.get(split_key, {})
     per_class = split.get("per_class", {}) if isinstance(split, dict) else {}
     fallback_recall = split.get("per_class_recall", {}) if isinstance(split, dict) else {}
@@ -105,7 +110,7 @@ def class_metrics_frame(evaluation: dict[str, Any], split_key: str = "official_t
         fallback_recall = evaluation.get("test_class_recall", {}) or {}
 
     rows: list[dict[str, Any]] = []
-    for class_name in evaluation.get("classes", CLASS_NAMES):
+    for class_name in CLASS_NAMES:
         metrics = per_class.get(class_name, {}) if isinstance(per_class, dict) else {}
         row: dict[str, Any] = {"Class": class_name}
         for source_key, target_key in (
@@ -115,33 +120,52 @@ def class_metrics_frame(evaluation: dict[str, Any], split_key: str = "official_t
             ("support", "Support"),
         ):
             value = metrics.get(source_key)
-            if isinstance(value, (int, float)):
-                row[target_key] = float(value)
-        if "Recall" not in row and class_name in fallback_recall:
-            row["Recall"] = float(fallback_recall[class_name])
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value)):
+                numeric_value = float(value)
+                row[target_key] = int(numeric_value) if target_key == "Support" and numeric_value.is_integer() else numeric_value
+        if "Recall" not in row and isinstance(fallback_recall, dict) and class_name in fallback_recall:
+            fallback_value = fallback_recall[class_name]
+            if isinstance(fallback_value, (int, float)) and not isinstance(fallback_value, bool):
+                row["Recall"] = float(fallback_value)
         if len(row) > 1:
             rows.append(row)
     return pd.DataFrame(rows).set_index("Class") if rows else pd.DataFrame()
 
 
 def confusion_matrix_frame(evaluation: dict[str, Any], split_key: str = "official_test") -> pd.DataFrame | None:
-    """Return the actual stored confusion matrix, or None if not recorded."""
+    """Return the measured confusion matrix reordered to the canonical class order."""
     split = evaluation.get(split_key, {})
     matrix = split.get("confusion_matrix") if isinstance(split, dict) else None
-    classes = evaluation.get("classes", CLASS_NAMES)
-    if not isinstance(matrix, list) or len(matrix) != len(classes):
+    source_classes = evaluation.get("classes", CLASS_NAMES)
+    if not isinstance(source_classes, list) or not isinstance(matrix, list):
         return None
-    if any(not isinstance(row, list) or len(row) != len(classes) for row in matrix):
+    if len(matrix) != len(source_classes):
         return None
-    return pd.DataFrame(matrix, index=classes, columns=classes).astype(int)
+    if any(not isinstance(row, list) or len(row) != len(source_classes) for row in matrix):
+        return None
+    if len(set(source_classes)) != len(source_classes) or not set(CLASS_NAMES).issubset(set(source_classes)):
+        return None
+
+    source_frame = pd.DataFrame(matrix, index=source_classes, columns=source_classes).astype(int)
+    return source_frame.loc[CLASS_NAMES, CLASS_NAMES]
 
 
 def fpr_frame(evaluation: dict[str, Any], split_key: str = "official_test") -> pd.DataFrame:
+    """Return available one-versus-rest FPR values in canonical class order."""
     split = evaluation.get(split_key, {})
     fpr = split.get("false_positive_rate_ovr", {}) if isinstance(split, dict) else {}
     if not isinstance(fpr, dict) or not fpr:
         return pd.DataFrame(columns=["False positive rate"])
-    return pd.DataFrame.from_dict(fpr, orient="index", columns=["False positive rate"])
+    rows = [
+        {"Class": class_name, "False positive rate": float(fpr[class_name])}
+        for class_name in CLASS_NAMES
+        if class_name in fpr
+        and isinstance(fpr[class_name], (int, float))
+        and not isinstance(fpr[class_name], bool)
+        and math.isfinite(float(fpr[class_name]))
+        and 0.0 <= float(fpr[class_name]) <= 1.0
+    ]
+    return pd.DataFrame(rows).set_index("Class") if rows else pd.DataFrame(columns=["False positive rate"])
 
 
 def prediction_distribution(predictions: pd.DataFrame) -> pd.DataFrame:

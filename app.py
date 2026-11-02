@@ -7,7 +7,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from nids_core import DEFAULT_MODEL_PATH, FEATURE_COLUMNS, load_model, predict_records
+from nids_core import CLASS_NAMES, DEFAULT_MODEL_PATH, FEATURE_COLUMNS, load_model, predict_records
 from nids_dashboard import (
     class_metrics_frame,
     confidence_frame,
@@ -140,11 +140,26 @@ def render_dashboard(evaluation: dict, evaluation_source: str):
         class_frame = class_metrics_frame(evaluation, "official_test")
         if not class_frame.empty:
             percent_columns = [column for column in ("Precision", "Recall", "F1-score") if column in class_frame.columns]
-            styled = class_frame.style.format({column: "{:.2%}" for column in percent_columns})
+            formatters = {column: "{:.2%}" for column in percent_columns}
+            if "Support" in class_frame.columns:
+                formatters["Support"] = "{:,.0f}"
+            styled = class_frame.style.format(formatters)
             st.dataframe(styled, width="stretch")
             if "Recall" in class_frame.columns:
                 st.markdown("**Recall by attack class**")
-                st.bar_chart(class_frame[["Recall"]], y="Recall", height=240)
+                recall_plot = class_frame[["Recall"]].reset_index()
+                recall_figure = px.bar(
+                    recall_plot,
+                    x="Class",
+                    y="Recall",
+                    text="Recall",
+                    category_orders={"Class": CLASS_NAMES},
+                    labels={"Recall": "Recall", "Class": "Actual class"},
+                )
+                recall_figure.update_traces(texttemplate="%{y:.1%}", textposition="outside", cliponaxis=False)
+                recall_figure.update_yaxes(range=[0, 1], tickformat=".0%", title="Recall (%)")
+                recall_figure.update_layout(showlegend=False, margin=dict(t=35, r=15, b=25, l=15))
+                st.plotly_chart(recall_figure, width="stretch", config={"displaylogo": False})
         else:
             st.info("No class-wise metrics are available in the selected evaluation artifact.")
 
@@ -166,7 +181,19 @@ def render_dashboard(evaluation: dict, evaluation_source: str):
     fpr = fpr_frame(evaluation, "official_test")
     if not fpr.empty:
         st.subheader("One-versus-rest false-positive rate by class")
-        st.bar_chart(fpr, height=220)
+        fpr_plot = fpr.reset_index()
+        fpr_figure = px.bar(
+            fpr_plot,
+            x="Class",
+            y="False positive rate",
+            text="False positive rate",
+            category_orders={"Class": CLASS_NAMES},
+            labels={"False positive rate": "False positive rate", "Class": "Actual class"},
+        )
+        fpr_figure.update_traces(texttemplate="%{y:.1%}", textposition="outside", cliponaxis=False)
+        fpr_figure.update_yaxes(tickformat=".1%", title="False positive rate (%)", rangemode="tozero")
+        fpr_figure.update_layout(showlegend=False, margin=dict(t=35, r=15, b=25, l=15))
+        st.plotly_chart(fpr_figure, width="stretch", config={"displaylogo": False})
     elif evaluation_source == "reported_run_snapshot":
         st.caption("Class-wise false-positive rates were not included in the reported console summary; no values are inferred.")
 

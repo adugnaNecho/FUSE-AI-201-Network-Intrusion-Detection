@@ -13,7 +13,7 @@
 
 The prototype classifies connection-level records into five classes: **Normal, DoS, Probe, U2R, and R2L**. It uses a Random Forest model in an imbalanced-learn pipeline with SMOTENC, numerical imputation/scaling, and categorical imputation/one-hot encoding.
 
-The deployed Streamlit interface accepts a CSV containing the 41 NSL-KDD model features and returns the predicted class, maximum class probability (displayed as confidence), threat-severity label, and probabilities for all five classes. It also provides a sample input download and a prediction-results CSV download. The Analytics Dashboard tab shows validation-versus-independent-test metrics, class-wise test results, the measured 5 × 5 confusion matrix and one-versus-rest false-positive rates when these are present in `artifacts/evaluation.json`. After a CSV is scored, it also summarizes predicted class/severity counts, uploaded byte/count features by record order, and maximum class probabilities. An optional FastAPI interface is included in the source repository.
+The deployed Streamlit interface accepts a CSV containing the 41 NSL-KDD model features and returns the predicted class, maximum class probability (displayed as confidence), threat-severity label, and probabilities for all five classes. It also provides a sample input download and a prediction-results CSV download. The Analytics Dashboard tab shows validation-versus-independent-test metrics, class-wise test results, the measured 5 × 5 confusion matrix and one-versus-rest false-positive rates when these are present in `artifacts/evaluation.json`. The validation/test comparison uses grouped bars on a 0–100% axis. Class metrics, recall and false-positive-rate charts, and confusion-matrix rows/columns share the fixed order Normal, DoS, Probe, U2R, R2L; support counts display as integers and false-positive rates as percentages. After a CSV is scored, the dashboard also summarizes predicted class/severity counts, uploaded byte/count features by record order, and maximum class probabilities. An optional FastAPI interface is included in the source repository.
 
 ## 2. Dataset and evaluation
 
@@ -136,11 +136,11 @@ pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-The dashboard update was checked with **24 automated tests passed** in the preparation environment: original feature/input validation and API tests plus dashboard metric loading, class distribution, traffic-profile and confusion-matrix handling. These software tests are not a substitute for independent model performance evaluation.
+The latest dashboard refinement was checked with **28 automated tests passed** in the preparation environment: original feature/input validation and API tests plus dashboard metric loading, class distribution, traffic-profile and confusion-matrix handling. These software tests are not a substitute for independent model performance evaluation.
 
 ## 6. Analytics dashboard
 
-The dashboard has two distinct evidence sources. Benchmark metrics, per-class results, confusion matrix and false-positive rates come from the `evaluation.json` emitted by `train_model.py`; if that artifact is missing, the app uses a clearly disclosed snapshot of the latest reported training metrics and does not invent matrix/FPR values. Uploaded-record charts are calculated from the current CSV and prediction output. The uploaded-record byte/count plot uses record order because NSL-KDD has no timestamp in this schema; byte values are log-transformed for display only. See `docs/analytics_dashboard_guide.md`.
+The dashboard has two distinct evidence sources. Benchmark metrics, per-class results, confusion matrix and false-positive rates come from the `evaluation.json` emitted by `train_model.py`; if that artifact is missing, the app uses a clearly disclosed snapshot of the latest reported training metrics and does not invent matrix/FPR values. The validation/test comparison uses grouped bars rather than stacked bars. Class metrics, recall, false-positive-rate charts and confusion-matrix axes use the same fixed class order: Normal, DoS, Probe, U2R, R2L. Support values are formatted as integer counts and false-positive rates as percentages. Uploaded-record charts are calculated from the current CSV and prediction output. The uploaded-record byte/count plot uses record order because NSL-KDD has no timestamp in this schema; byte values are log-transformed for display only. See `docs/analytics_dashboard_guide.md`.
 
 ## 7. Deployment and maintenance
 

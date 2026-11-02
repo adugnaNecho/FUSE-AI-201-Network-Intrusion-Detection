@@ -7,6 +7,7 @@ from nids_dashboard import (
     class_metrics_frame,
     confidence_frame,
     confusion_matrix_frame,
+    fpr_frame,
     load_evaluation,
     metrics_comparison_frame,
     normal_vs_attack_profile,
@@ -142,3 +143,55 @@ def test_normal_vs_attack_profile_rejects_row_count_mismatch():
     records = pd.DataFrame({"src_bytes": [1, 2]})
     predictions = pd.DataFrame({"predicted_class": ["Normal"]})
     assert normal_vs_attack_profile(records, predictions).empty
+
+
+def test_class_metrics_use_canonical_order_and_integer_support():
+    source_order = ["R2L", "U2R", "Probe", "DoS", "Normal"]
+    payload = {
+        "classes": source_order,
+        "official_test": {
+            "per_class": {
+                name: {
+                    "precision": 0.5,
+                    "recall": 0.4,
+                    "f1-score": 0.44,
+                    "support": float(index + 10),
+                }
+                for index, name in enumerate(source_order)
+            }
+        },
+    }
+    frame = class_metrics_frame(payload)
+    assert list(frame.index) == CLASS_NAMES
+    assert frame.loc["Normal", "Support"] == 14
+    assert pd.api.types.is_integer_dtype(frame["Support"])
+
+
+def test_confusion_matrix_is_reordered_to_canonical_class_order():
+    source_order = ["R2L", "U2R", "Probe", "DoS", "Normal"]
+    matrix = [[i * 10 + j for j in range(5)] for i in range(5)]
+    payload = {"classes": source_order, "official_test": {"confusion_matrix": matrix}}
+    frame = confusion_matrix_frame(payload)
+    assert list(frame.index) == CLASS_NAMES
+    assert list(frame.columns) == CLASS_NAMES
+    # Normal is the final row/column in source_order, hence source value [4][4].
+    assert frame.loc["Normal", "Normal"] == 44
+    assert frame.loc["DoS", "DoS"] == 33
+
+
+def test_fpr_frame_uses_canonical_class_order_and_proportions():
+    payload = {
+        "official_test": {
+            "false_positive_rate_ovr": {
+                "R2L": 0.004,
+                "U2R": 0.003,
+                "Probe": 0.02,
+                "DoS": 0.01,
+                "Normal": 0.409,
+            }
+        }
+    }
+    frame = fpr_frame(payload)
+    assert list(frame.index) == CLASS_NAMES
+    assert frame.loc["Normal", "False positive rate"] == 0.409
+    assert frame["False positive rate"].between(0, 1).all()
