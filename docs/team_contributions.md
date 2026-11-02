@@ -12,9 +12,9 @@ The supplied notebook does not state who completed each work package. The follow
 
 | Work package | Member(s) responsible | Evidence / contribution |
 |---|---|---|
-| Problem definition and project proposal (Module 4) | Adugna Necho Mulatu | Proposal section / meeting notes |
-| Dataset preparation and five-class label mapping | Aminadab Tewhibo Mihret| Notebook cells and code review |
-| Model development, SMOTENC and hyperparameter tuning | Adugna Necho Mulatu and Aminadab Tewhibo Mihret | Notebook runs and model configuration |
-| Evaluation and error analysis | Aminadab Tewhibo Mihret | KDDTest+ evaluation outputs |
-| Streamlit/API prototype and packaging | Adugna Necho Mulatu | Repository commits and test evidence |
-| Monitoring plan, documentation and presentation | Hussen Yasin Mohammed, Abdulfetah Hayerdin Mohammed and Nebiyu Mesfin Fikade | Module 6 documents and video |
+| Problem definition and project proposal (Module 4) | Adugna Necho| Proposal section / meeting notes |
+| Dataset preparation and five-class label mapping | Aminadab Tewhibo | Notebook cells and code review |
+| Model development, SMOTENC and hyperparameter tuning | Adugna Necho and Aminadab Tewhibo | Notebook runs and model configuration |
+| Evaluation and error analysis | Aminadab Tewhibo | KDDTest+ evaluation outputs |
+| Streamlit/API prototype and packaging | Adugna Necho | Repository commits and test evidence |
+| Monitoring plan, documentation and presentation | Hussen Yasin, Abdulfetah Hayerdin and Nebiyu Mesfin | Module 6 documents and video |
