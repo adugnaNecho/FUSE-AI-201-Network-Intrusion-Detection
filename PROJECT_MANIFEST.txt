@@ -6,7 +6,7 @@ Application and model
 - nids_core.py — schema validation and model inference helpers
 - nids_dashboard.py — evaluation and uploaded-record analytics helpers
 - train_model.py — NSL-KDD training, evaluation and model export
-- artifacts/ — trained model pipeline, class mapping, evaluation JSON and SHA-256 sidecar (canonical in GitHub repository)
+- artifacts/ — trained model pipeline, class mapping, evaluation JSON and SHA-256 sidecar (canonical model-artifact location on GitHub)
 
 Dataset and sample
 - notebooks/Group19_Module5_Implementation.ipynb — model development notebook
@@ -23,11 +23,10 @@ Dashboard and deployment
 
 Module 6 documentation
 - README.md — project overview, setup, URLs, metrics and scope
-- docs/Group19_Module6_Project_Portfolio.docx/.pdf — project portfolio
-- docs/Group19_Module6_Retrospective.docx/.pdf — one-page retrospective
-- docs/Group19_Module6_Simulated_Data_Statement.docx/.pdf — data disclosure
-- docs/Group19_Module6_Video_Script.docx/.pdf — capstone video script
-- docs/module6_video_script.md — editable video script
+- docs/Group19_Module6_Project_Portfolio.docx/.pdf — project portfolio copies previously uploaded to the repository; use the latest final Canvas ZIP for current Office/PDF exports
+- docs/Group19_Module6_Retrospective.docx/.pdf — retrospective copies previously uploaded to the repository; use the latest final Canvas ZIP for current Office/PDF exports
+- docs/Group19_Module6_Simulated_Data_Statement.docx/.pdf — data-statement copies previously uploaded to the repository; use the latest final Canvas ZIP for current Office/PDF exports
+- docs/module6_video_script.md and docs/Group19_Module6_Video_Script.md — editable video script
 - docs/submission_checklist.md — Canvas deliverable checklist
 - docs/team_contributions.md — member contribution record to be confirmed by the group
 - docs/monitoring_support_maintenance.md — proposed future operational plan
