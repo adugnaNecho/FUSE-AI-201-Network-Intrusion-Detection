@@ -2,38 +2,63 @@
 
 ## Dataset and split protocol
 
-The supplied Module 5 notebook loads the public NSL-KDD `KDDTrain+` and `KDDTest+` files. The recorded shapes are 125,973 training records and 22,544 independent test records, each with 41 input features plus the class label and difficulty metadata. Raw labels are grouped into five classes: Normal, DoS, Probe, U2R and R2L.
+The model uses public NSL-KDD `KDDTrain+` and `KDDTest+` files. The data contain 125,973 training records and 22,544 independent test records, each with 41 input features plus label/metadata. Raw labels are grouped into five classes: Normal, DoS, Probe, U2R and R2L.
 
-A stratified validation split is created from `KDDTrain+` with `test_size=0.1765` and `random_state=42`: 103,738 training records and 22,235 validation records. The official `KDDTest+` set remains outside fitting and tuning and is used for final evaluation. Numeric imputation/scaling and categorical imputation/one-hot encoding are inside the model pipeline. SMOTENC is placed inside an imbalanced-learn pipeline so resampling is fitted only on the active training partition/fold.
+A stratified validation split is formed from `KDDTrain+` with `test_size=0.1765` and `random_state=42`: 103,738 training records and 22,235 validation records. `KDDTest+` is held out for final evaluation. Numeric and categorical preprocessing is inside the model pipeline. SMOTENC is inside the training pipeline so synthetic resampling is applied only when fitting the training partition.
 
-## Reported results from the uploaded notebook
+## Latest training run reported by the group
 
-| Metric | Held-out validation (KDDTrain+ split) | Independent KDDTest+ |
+The following values are transcribed from the successful `python train_model.py` output shared by the group on November 2, 2026 (local time).
+
+| Metric | Validation split | Independent KDDTest+ |
 |---|---:|---:|
-| Accuracy | 99.8876% | 74.6274% |
-| Macro precision | 97.1483% | 80.0803% |
-| Macro recall | 99.4603% | 48.8729% |
-| Macro F1 | 98.2503% | 51.5480% |
+| Accuracy | 99.89% | 74.62% |
+| Macro precision | 97.17% | 79.35% |
+| Macro recall | 99.46% | 48.71% |
+| Macro F1 | 98.26% | 51.51% |
 
-The three-fold grid search recorded best cross-validation Macro-F1 of 0.9019 and selected `n_estimators=250`, `max_depth=20`, and `min_samples_split=5`. The independent-test class recalls were: Normal 0.97, DoS 0.77, Probe 0.54, U2R 0.10 and R2L 0.06. The one-versus-rest false-positive rate was 0.408166 for the Normal class, the largest among the classes. The notebook's five proposal thresholds (accuracy >= 0.90, Macro-F1 >= 0.85, macro precision >= 0.85, macro recall >= 0.85 and maximum class FPR < 0.05) were all marked **Fail** on the official test set.
+### Independent-test recall by class
 
-The notebook's batch timing measurement covered 1,000 test records and recorded 0.1190 seconds total, or 0.1190 ms per record on that specific Colab runtime. This is a historical benchmark measurement, not a deployment guarantee. The notebook also recorded one-versus-rest ROC-AUC values between 0.9267 and 0.9723; these do not override the poor R2L/U2R recall or the generalization gap.
+| Class | Recall |
+|---|---:|
+| Normal | 97.28% |
+| DoS | 76.57% |
+| Probe | 53.52% |
+| U2R | 8.96% |
+| R2L | 7.20% |
+
+The most important limitation is the generalization gap: validation Macro F1 is 98.26%, while independent KDDTest+ Macro F1 is 51.51%. U2R and R2L recall are especially low. The latest console output did not show the aggregate maximum class FPR; consult the generated `artifacts/evaluation.json` before reporting that metric. The model should not be the sole basis for security decisions and must not be used for automatic traffic blocking.
+
+## Hosted prototype demonstration
+
+**Public application:** [https://group19-network-intrusion-detection.streamlit.app/](https://group19-network-intrusion-detection.streamlit.app/)  
+**Public source repository:** [https://github.com/adugnaNecho/Group19-network-intrusion-detection](https://github.com/adugnaNecho/Group19-network-intrusion-detection)
+
+The group reports that the hosted Streamlit application installed its dependencies, accepted an uploaded CSV, and generated a prediction. The accompanying screenshot shows one uploaded record classified as **DoS**, with displayed confidence **1.00** and severity **High**. The screenshot demonstrates that the app's input-to-output path worked for that record; it does not prove the prediction is correct or that the confidence score is calibrated.
+
+![Streamlit one-record demonstration](assets/streamlit_prediction_demo.png)
+
+## Test evidence
+
+The group reported **10 automated tests passed** (`python -m pytest -q`). The tests cover feature schema/input validation, invalid and missing fields, prediction-output formatting using a deterministic test double, and API request/schema behavior. These are software tests, not model accuracy tests. The public app was separately exercised with an uploaded CSV in the group-provided demonstration.
 
 ## Interpretation
 
-The high hold-out validation score does not transfer to the independent KDDTest+ set. R2L and U2R are particularly difficult for this model, and many R2L records are predicted as Normal. A production system must not rely on the prototype as a sole detection or blocking mechanism. Treat each prediction as a research/triage indication requiring analyst review.
+The validation results do not transfer fully to the independent KDDTest+ data. Class-wise metrics reveal that aggregate accuracy hides weaknesses for the minority U2R and R2L groups. Possible explanations include distribution differences between the training and test benchmark, sparse minority-class examples, and overlapping feature patterns; these are hypotheses for further study rather than proven causes.
 
-Possible explanations include distribution shift between KDDTrain+ and KDDTest+, different attack signatures in the test benchmark, minority-class sample scarcity and overlapping feature patterns. These are hypotheses for follow-up investigation, not causes proven by the present experiment.
+The hosted app is a research prototype for uploaded NSL-KDD-style connection records. It does not ingest live traffic, capture packets, block connections, or provide production-grade monitoring. The displayed maximum class probability should not be interpreted as a calibrated probability of a real-world threat.
 
 ## What has and has not been tested
 
-- **Reported in the notebook:** benchmark split metrics, class-wise report, confusion matrix, per-class FPR, ROC-AUC, feature importance, a batch inference timing, model export/reload consistency.
-- **Added in this repository:** deterministic unit tests for the 41-feature input schema, validation errors, prediction-output formatting using a test double, and API schema/empty-request behavior. These tests do not evaluate the learned classifier.
-- **Not verified in this packaging environment:** rebuilding the actual model artifact, running the complete training script, loading the real artifact in Streamlit/FastAPI, or deploying a public web app. The supplied uploads did not contain the `.joblib` model file, and package/data downloads were unavailable in this runtime.
+- **Model evaluation:** the latest training run reported validation and independent KDDTest+ metrics above.
+- **Application demonstration:** the group-provided screen capture shows a one-record CSV upload and a DoS/High output in the hosted Streamlit interface.
+- **Automated software tests:** 10 tests passed locally, as reported by the group.
+- **Not established:** modern enterprise traffic performance, zero-day detection, live packet capture, automated enforcement, calibrated confidence, continuous drift monitoring, or production availability/SLA.
 
 ## Next experiments
 
-1. Re-run the training pipeline in a network-enabled, resource-appropriate environment and verify metrics against the saved notebook outputs.
-2. Investigate KDDTrain+/KDDTest+ label and feature distributions, especially R2L/U2R errors and false-Normal predictions.
-3. Compare class-sensitive objectives, carefully controlled resampling, calibrated probabilities and anomaly-detection approaches using training-only cross-validation.
-4. Keep the official test set untouched until a final, pre-registered evaluation. Report new results separately; do not overwrite historic results without a reproducible run record.
+1. Investigate R2L/U2R false negatives and false-Normal predictions using training-only cross-validation.
+2. Compare class-sensitive objectives, controlled resampling, calibrated outputs and anomaly-detection baselines.
+3. Use more representative, authorized and appropriately labelled datasets for a future evaluation.
+4. Keep an independent final test set untouched until model selection is complete.
+5. Evaluate the public app with a multi-record sample CSV and document exact row count, response, errors and download behavior.

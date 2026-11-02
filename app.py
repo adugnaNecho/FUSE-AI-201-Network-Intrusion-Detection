@@ -1,73 +1,309 @@
-"""Streamlit interface for single- and batch-record NIDS prediction."""
+"""Streamlit interface and analytics dashboard for Group 19's NSL-KDD NIDS."""
 from pathlib import Path
+import hashlib
+import io
 
 import pandas as pd
 import streamlit as st
 
 from nids_core import DEFAULT_MODEL_PATH, FEATURE_COLUMNS, load_model, predict_records
+from nids_dashboard import (
+    class_metrics_frame,
+    confidence_frame,
+    confusion_matrix_frame,
+    fpr_frame,
+    load_evaluation,
+    metrics_comparison_frame,
+    normal_vs_attack_profile,
+    prediction_distribution,
+    severity_distribution,
+    traffic_profile,
+)
 
-st.set_page_config(page_title="Group 19 | Network Intrusion Detection", page_icon="🛡️", layout="wide")
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / DEFAULT_MODEL_PATH
+EVALUATION_PATH = BASE_DIR / "artifacts" / "evaluation.json"
+SAMPLE_PATH = BASE_DIR / "examples" / "sample_input.csv"
+
+st.set_page_config(
+    page_title="Group 19 | Network Intrusion Detection",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+
+def get_model():
+    return load_model(MODEL_PATH)
+
+
+@st.cache_resource(show_spinner="Loading the trained Random Forest + SMOTENC model...")
+def cached_model():
+    return get_model()
+
+
+def confusion_matrix_style(frame: pd.DataFrame):
+    """Apply a blue heatmap style without adding a matplotlib dependency."""
+    maximum = max(int(frame.to_numpy().max()), 1)
+    styles = pd.DataFrame("", index=frame.index, columns=frame.columns)
+    for row_index in range(frame.shape[0]):
+        for column_index in range(frame.shape[1]):
+            intensity = float(frame.iat[row_index, column_index]) / maximum
+            alpha = 0.08 + 0.68 * intensity
+            styles.iat[row_index, column_index] = (
+                f"background-color: rgba(35, 120, 190, {alpha:.2f});"
+            )
+    return frame.style.apply(lambda _: styles, axis=None)
+
+
+def render_metric_cards(evaluation: dict, split_key: str, label: str):
+    metrics = evaluation.get(split_key, {})
+    columns = st.columns(4)
+    for column, key in zip(columns, ("accuracy", "macro_precision", "macro_recall", "macro_f1")):
+        value = metrics.get(key)
+        if isinstance(value, (int, float)):
+            column.metric(
+                METRIC_CARD_LABELS[key],
+                f"{float(value) * 100:.2f}%",
+                help=f"{label} — calculated on the {metrics.get('records', 'reported')} records in this split.",
+            )
+        else:
+            column.metric(METRIC_CARD_LABELS[key], "Not available")
+
+
+METRIC_CARD_LABELS = {
+    "accuracy": "Accuracy",
+    "macro_precision": "Macro precision",
+    "macro_recall": "Macro recall",
+    "macro_f1": "Macro F1",
+}
+
+
+def render_dashboard(evaluation: dict, evaluation_source: str):
+    st.header("NIDS Analytics Dashboard")
+    st.caption("Benchmark evaluation and uploaded-record analytics. All charts are based on recorded evaluation artifacts or the current upload.")
+
+    if evaluation_source == "evaluation_artifact":
+        st.success("Loaded benchmark metrics, class-wise results and confusion matrix from artifacts/evaluation.json.")
+    else:
+        st.info(
+            "Using the latest metrics transcribed from the successful training command. "
+            "The full confusion matrix and per-class precision/F1 are not embedded in this fallback snapshot. "
+            "The dashboard will display them automatically when artifacts/evaluation.json is present."
+        )
+
+    st.subheader("Model performance — independent KDDTest+ set")
+    render_metric_cards(evaluation, "official_test", "Independent KDDTest+ evaluation")
+
+    test_metrics = evaluation.get("official_test", {})
+    if test_metrics.get("records"):
+        st.caption(f"Independent test records: {int(test_metrics['records']):,} · Dataset: NSL-KDD KDDTest+ · Model: Random Forest + SMOTENC")
+
+    st.subheader("Validation versus independent-test performance")
+    comparison = metrics_comparison_frame(evaluation)
+    if not comparison.empty:
+        st.bar_chart(comparison, y=list(comparison.columns), height=280)
+        st.caption("The gap between validation and KDDTest+ scores is material. Independent-test results are the more conservative generalization estimate.")
+    else:
+        st.warning("No validation/test comparison values were found in the evaluation evidence.")
+
+    left, right = st.columns((1.1, 1))
+    with left:
+        st.subheader("Class-wise test metrics")
+        class_frame = class_metrics_frame(evaluation, "official_test")
+        if not class_frame.empty:
+            percent_columns = [column for column in ("Precision", "Recall", "F1-score") if column in class_frame.columns]
+            styled = class_frame.style.format({column: "{:.2%}" for column in percent_columns})
+            st.dataframe(styled, width="stretch")
+            if "Recall" in class_frame.columns:
+                st.markdown("**Recall by attack class**")
+                st.bar_chart(class_frame[["Recall"]], y="Recall", height=240)
+        else:
+            st.info("No class-wise metrics are available in the selected evaluation artifact.")
+
+    with right:
+        st.subheader("Confusion matrix — KDDTest+")
+        cm = confusion_matrix_frame(evaluation, "official_test")
+        if cm is not None:
+            st.caption("Rows = actual class · Columns = predicted class")
+            st.dataframe(confusion_matrix_style(cm), width="stretch")
+            st.download_button(
+                "Download confusion matrix CSV",
+                cm.to_csv(index=True).encode("utf-8"),
+                file_name="group19_kddtest_confusion_matrix.csv",
+                mime="text/csv",
+            )
+        else:
+            st.info("The confusion matrix is not available in the fallback metric snapshot. Use the evaluation.json generated by train_model.py to display the measured 5 × 5 matrix. No matrix is invented here.")
+
+    fpr = fpr_frame(evaluation, "official_test")
+    if not fpr.empty:
+        st.subheader("One-versus-rest false-positive rate by class")
+        st.bar_chart(fpr, height=220)
+    elif evaluation_source == "reported_run_snapshot":
+        st.caption("Class-wise false-positive rates were not included in the reported console summary; no values are inferred.")
+
+    st.divider()
+    st.subheader("Current uploaded-record analytics")
+    uploaded_records = st.session_state.get("nids_uploaded_records")
+    uploaded_predictions = st.session_state.get("nids_uploaded_predictions")
+
+    if uploaded_records is None or uploaded_predictions is None:
+        st.info("Upload a 41-feature CSV in the Prediction tab and click 'Predict intrusion class'. The charts below will then summarize that upload.")
+        return
+
+    st.caption(f"Current upload: {len(uploaded_records):,} record(s). The traffic plots show record order, not time; NSL-KDD input features do not include timestamps.")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Uploaded records", f"{len(uploaded_records):,}")
+    c2.metric("Predicted attack records", f"{int((uploaded_predictions['predicted_class'] != 'Normal').sum()):,}")
+    c3.metric("Predicted Normal records", f"{int((uploaded_predictions['predicted_class'] == 'Normal').sum()):,}")
+
+    left, right = st.columns(2)
+    with left:
+        st.markdown("**Predicted class distribution**")
+        class_counts = prediction_distribution(uploaded_predictions)
+        st.bar_chart(class_counts, height=270)
+    with right:
+        st.markdown("**Predicted threat-severity distribution**")
+        severity_counts = severity_distribution(uploaded_predictions)
+        st.bar_chart(severity_counts, height=270)
+
+    st.markdown("**Normal versus predicted-attack traffic profile**")
+    grouped_profile = normal_vs_attack_profile(uploaded_records, uploaded_predictions, feature="src_bytes")
+    if not grouped_profile.empty:
+        st.line_chart(grouped_profile, height=270)
+        st.caption("Groups are based on model predictions (Normal vs any predicted attack), not ground-truth labels. Values use log10(src_bytes + 1); the horizontal axis is record order, not time.")
+
+    st.markdown("**Network traffic feature profile**")
+    profile = traffic_profile(uploaded_records)
+    if not profile.empty:
+        st.line_chart(profile, height=300)
+        st.caption("Byte features are displayed as log10(value + 1) to make skewed magnitudes readable. Count and service-count fields retain their recorded scale.")
+    else:
+        st.info("No supported byte/count fields were found for the uploaded-record traffic chart.")
+
+    confidence = confidence_frame(uploaded_predictions)
+    if not confidence.empty:
+        st.markdown("**Maximum class probability per uploaded record**")
+        st.line_chart(confidence, height=220)
+        st.caption("These are model maximum class probabilities, not calibrated probabilities of real-world threat.")
+
+    st.download_button(
+        "Download current prediction results",
+        data=uploaded_predictions.to_csv(index=False).encode("utf-8"),
+        file_name="group19_nids_predictions.csv",
+        mime="text/csv",
+        key="dashboard_download_predictions",
+    )
+
+
+evaluation, evaluation_source = load_evaluation(EVALUATION_PATH)
+
 st.title("Network Intrusion Detection System")
-st.caption("Group 19 · NSL-KDD benchmark · Five-class Random Forest + SMOTENC prototype")
+st.caption("Group 19 · FUSE AI-201 · NSL-KDD benchmark · Five-class Random Forest + SMOTENC prototype")
 st.warning(
     "Research prototype only. It classifies NSL-KDD-style connection records; it does not capture live packets, "
     "block traffic, or provide production-grade security monitoring."
 )
 
-@st.cache_resource(show_spinner="Loading the trained model...")
-def get_model():
-    return load_model(DEFAULT_MODEL_PATH)
-
-model = None
 try:
-    model = get_model()
+    model = cached_model()
 except FileNotFoundError as exc:
-    st.error("The trained model artifact is not present in this checkout.")
-    st.code("python train_model.py", language="bash")
-    st.caption(str(exc))
+    model = None
+    model_error = str(exc)
+except Exception as exc:
+    model = None
+    model_error = f"The model could not be loaded: {exc}"
 
-with st.expander("About the model and its limitations", expanded=False):
+if model is not None:
+    st.success("Trained model loaded and ready for CSV inference.")
+else:
+    st.error("The trained model artifact could not be loaded.")
+    st.code("artifacts/group19_final_nids_random_forest_pipeline.joblib", language="text")
+    st.caption(model_error)
+
+prediction_tab, dashboard_tab, about_tab = st.tabs(["CSV Prediction", "Analytics Dashboard", "About & Limitations"])
+
+with prediction_tab:
+    st.header("1. Provide input records")
+    st.write("Upload a CSV containing the 41 NSL-KDD feature columns. The supplied sample file can be used to verify the interface.")
+    if SAMPLE_PATH.is_file():
+        st.download_button(
+            "Download 41-feature sample CSV",
+            data=SAMPLE_PATH.read_bytes(),
+            file_name="nids_sample_input.csv",
+            mime="text/csv",
+        )
+
+    upload = st.file_uploader("Upload CSV", type=["csv"], key="nids_csv_upload")
+    if upload is not None:
+        try:
+            raw = upload.getvalue()
+            upload_signature = hashlib.sha256(raw).hexdigest()
+            input_df = pd.read_csv(io.BytesIO(raw))
+            if st.session_state.get("nids_upload_signature") != upload_signature:
+                st.session_state["nids_upload_signature"] = upload_signature
+                st.session_state["nids_uploaded_predictions"] = None
+            st.session_state["nids_uploaded_records"] = input_df.copy()
+            st.write(f"Uploaded {len(input_df):,} record(s).")
+            st.dataframe(input_df.head(5), width="stretch")
+
+            if model is not None and st.button("Predict intrusion class", type="primary"):
+                with st.spinner("Classifying uploaded connection records..."):
+                    results = predict_records(model, input_df)
+                st.session_state["nids_uploaded_predictions"] = results
+                st.success(f"Prediction completed for {len(results):,} record(s). Open the Analytics Dashboard tab for charts and summary metrics.")
+
+            saved_results = st.session_state.get("nids_uploaded_predictions")
+            if saved_results is not None and st.session_state.get("nids_upload_signature") == upload_signature:
+                st.subheader("Prediction results")
+                st.dataframe(saved_results, width="stretch")
+                st.download_button(
+                    "Download predictions CSV",
+                    data=saved_results.to_csv(index=False).encode("utf-8"),
+                    file_name="nids_predictions.csv",
+                    mime="text/csv",
+                    key="prediction_tab_download",
+                )
+            elif model is None:
+                st.info("The model is unavailable, so predictions cannot be generated in this deployment.")
+        except Exception as exc:
+            st.error(f"Input could not be processed: {exc}")
+    else:
+        st.info("No CSV uploaded yet. Download the sample above, or prepare a CSV with all 41 input features.")
+
+    with st.expander("Required 41-feature schema"):
+        st.code(", ".join(FEATURE_COLUMNS), language="text")
+
+with dashboard_tab:
+    render_dashboard(evaluation, evaluation_source)
+
+with about_tab:
+    st.header("About the model and its limitations")
     st.markdown(
         "The model uses 41 connection-level features and maps detailed NSL-KDD attack labels to "
-        "**Normal, DoS, Probe, U2R, and R2L**. In the uploaded notebook's recorded KDDTest+ evaluation, "
-        "accuracy was **74.63%** and Macro-F1 was **0.5155**. R2L and U2R recall were **0.06** and **0.10**. "
+        "**Normal, DoS, Probe, U2R, and R2L**. It is a benchmark-based research prototype, not a live packet sensor."
+    )
+    st.subheader("Latest independent-test results")
+    render_metric_cards(evaluation, "official_test", "Independent KDDTest+ evaluation")
+    recall_frame = class_metrics_frame(evaluation, "official_test")
+    if not recall_frame.empty:
+        st.markdown("**Class-wise test metrics available from the evaluation artifact**")
+        st.dataframe(recall_frame, width="stretch")
+    st.warning(
+        "The latest independent KDDTest+ Macro F1 was approximately 51.51%. Recall was particularly low for U2R "
+        "(8.96%) and R2L (7.20%). A displayed maximum class probability is not necessarily calibrated. "
         "Treat predictions as triage hints, not definitive incident decisions."
     )
-
-st.subheader("1. Provide input records")
-st.write("Upload a CSV containing the 41 NSL-KDD feature columns. The supplied sample file can be used to verify the interface.")
-sample_path = Path("examples/sample_input.csv")
-if sample_path.is_file():
-    st.download_button(
-        "Download 41-feature sample CSV",
-        data=sample_path.read_bytes(),
-        file_name="nids_sample_input.csv",
-        mime="text/csv",
+    st.markdown(
+        "**Not implemented:** live traffic capture, packet inspection, automated blocking, continuous drift monitoring, "
+        "production alerting, or a guaranteed service level. The monitoring and maintenance procedures are proposed "
+        "for a future controlled pilot."
     )
-upload = st.file_uploader("Upload CSV", type=["csv"])
-
-if upload is not None:
-    try:
-        input_df = pd.read_csv(upload)
-        st.write(f"Uploaded {len(input_df):,} record(s).")
-        st.dataframe(input_df.head(5), width="stretch")
-        if model is not None and st.button("Predict intrusion class", type="primary"):
-            results = predict_records(model, input_df)
-            st.subheader("2. Prediction results")
-            st.dataframe(results, width="stretch")
-            st.download_button(
-                "Download predictions CSV",
-                data=results.to_csv(index=False).encode("utf-8"),
-                file_name="nids_predictions.csv",
-                mime="text/csv",
-            )
-    except Exception as exc:
-        st.error(f"Input could not be processed: {exc}")
-else:
-    st.info("No CSV uploaded yet. Download the sample above, or prepare a CSV with all 41 input features.")
-
-with st.expander("Feature schema"):
-    st.code(", ".join(FEATURE_COLUMNS), language="text")
+    st.markdown(
+        "**Data:** public NSL-KDD KDDTrain+ / KDDTest+ benchmark files. The repository's sample CSV is illustrative; "
+        "no live organizational traffic is used in this demonstration."
+    )
 
 st.divider()
-st.caption("Dataset: NSL-KDD benchmark. No live network traffic is captured or transmitted by this application.")
+st.caption("Group 19 · FUSE AI-201 · Public research prototype · No live network traffic is captured or transmitted by this application.")
