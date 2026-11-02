@@ -181,19 +181,26 @@ def render_dashboard(evaluation: dict, evaluation_source: str):
     fpr = fpr_frame(evaluation, "official_test")
     if not fpr.empty:
         st.subheader("One-versus-rest false-positive rate by class")
-        fpr_plot = fpr.reset_index()
-        fpr_figure = px.bar(
-            fpr_plot,
-            x="Class",
-            y="False positive rate",
-            text="False positive rate",
-            category_orders={"Class": CLASS_NAMES},
-            labels={"False positive rate": "False positive rate", "Class": "Actual class"},
-        )
-        fpr_figure.update_traces(texttemplate="%{y:.1%}", textposition="outside", cliponaxis=False)
-        fpr_figure.update_yaxes(tickformat=".1%", title="False positive rate (%)", rangemode="tozero")
-        fpr_figure.update_layout(showlegend=False, margin=dict(t=35, r=15, b=25, l=15))
-        st.plotly_chart(fpr_figure, width="stretch", config={"displaylogo": False})
+        # fpr_frame returns an explicit two-column table. Do not reset its index:
+        # doing so can produce a different column name for some serialized frames.
+        try:
+            fpr_figure = px.bar(
+                fpr,
+                x="Class",
+                y="False positive rate",
+                text="False positive rate",
+                category_orders={"Class": CLASS_NAMES},
+                labels={"False positive rate": "False positive rate", "Class": "Actual class"},
+            )
+            fpr_figure.update_traces(texttemplate="%{y:.1%}", textposition="outside", cliponaxis=False)
+            fpr_figure.update_yaxes(tickformat=".1%", title="False positive rate (%)", rangemode="tozero")
+            fpr_figure.update_layout(showlegend=False, margin=dict(t=35, r=15, b=25, l=15))
+            st.plotly_chart(fpr_figure, width="stretch", config={"displaylogo": False})
+        except (ValueError, KeyError, TypeError) as exc:
+            # An optional chart must not take down the entire app. Keep the
+            # measured values inspectable while surfacing a concise diagnostic.
+            st.warning(f"The FPR chart could not be rendered ({type(exc).__name__}). The measured values are shown below.")
+            st.dataframe(fpr, width="stretch")
     elif evaluation_source == "reported_run_snapshot":
         st.caption("Class-wise false-positive rates were not included in the reported console summary; no values are inferred.")
 

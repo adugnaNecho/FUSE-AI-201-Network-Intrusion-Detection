@@ -151,11 +151,17 @@ def confusion_matrix_frame(evaluation: dict[str, Any], split_key: str = "officia
 
 
 def fpr_frame(evaluation: dict[str, Any], split_key: str = "official_test") -> pd.DataFrame:
-    """Return available one-versus-rest FPR values in canonical class order."""
+    """Return FPR values as explicit columns in canonical class order.
+
+    Keeping ``Class`` as a regular column (rather than a named index) avoids
+    ambiguity when the frame is passed to Plotly Express in Streamlit Cloud.
+    FPR values are proportions in [0, 1].
+    """
     split = evaluation.get(split_key, {})
     fpr = split.get("false_positive_rate_ovr", {}) if isinstance(split, dict) else {}
+    columns = ["Class", "False positive rate"]
     if not isinstance(fpr, dict) or not fpr:
-        return pd.DataFrame(columns=["False positive rate"])
+        return pd.DataFrame(columns=columns)
     rows = [
         {"Class": class_name, "False positive rate": float(fpr[class_name])}
         for class_name in CLASS_NAMES
@@ -165,7 +171,7 @@ def fpr_frame(evaluation: dict[str, Any], split_key: str = "official_test") -> p
         and math.isfinite(float(fpr[class_name]))
         and 0.0 <= float(fpr[class_name]) <= 1.0
     ]
-    return pd.DataFrame(rows).set_index("Class") if rows else pd.DataFrame(columns=["False positive rate"])
+    return pd.DataFrame(rows, columns=columns)
 
 
 def prediction_distribution(predictions: pd.DataFrame) -> pd.DataFrame:

@@ -192,6 +192,28 @@ def test_fpr_frame_uses_canonical_class_order_and_proportions():
         }
     }
     frame = fpr_frame(payload)
-    assert list(frame.index) == CLASS_NAMES
-    assert frame.loc["Normal", "False positive rate"] == 0.409
+    assert list(frame.columns) == ["Class", "False positive rate"]
+    assert list(frame["Class"]) == CLASS_NAMES
+    normal_rate = frame.loc[frame["Class"].eq("Normal"), "False positive rate"].iloc[0]
+    assert normal_rate == 0.409
     assert frame["False positive rate"].between(0, 1).all()
+
+
+def test_fpr_frame_is_plotly_express_compatible():
+    import plotly.express as px
+
+    payload = {
+        "official_test": {
+            "false_positive_rate_ovr": {
+                "Normal": 0.409,
+                "DoS": 0.01,
+                "Probe": 0.02,
+                "U2R": 0.003,
+                "R2L": 0.004,
+            }
+        }
+    }
+    frame = fpr_frame(payload)
+    figure = px.bar(frame, x="Class", y="False positive rate")
+    assert len(figure.data) == 1
+    assert list(figure.data[0].x) == CLASS_NAMES
