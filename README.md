@@ -5,7 +5,7 @@
 **Project:** Real-Time Network Intrusion Detection Using Machine Learning-Based Multi-Class Classification
 
 > **Live Streamlit prototype:** https://group19-network-intrusion-detection.streamlit.app/  
-> **Public GitHub repository:** https://github.com/adugnaNecho/Group19-network-intrusion-detection  
+> **Public GitHub repository:** https://github.com/adugnaNecho/FUSE-AI-201-Network-Intrusion-Detection  
 > **Source hotfix commit:** `8941226` — FPR chart data handling and table fallback.
 
 **Prototype scope:** This research prototype classifies uploaded NSL-KDD-style connection records. It does not capture live packets, block traffic, or provide production-grade security monitoring. The maximum class probability displayed as confidence is not a calibrated guarantee.
