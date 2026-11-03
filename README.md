@@ -46,7 +46,7 @@ The validation-to-test gap is substantial. U2R and R2L recall are especially low
 ## 3. Public prototype
 
 **Application:** https://group19-network-intrusion-detection.streamlit.app/  
-**Repository:** https://github.com/adugnaNecho/Group19-network-intrusion-detection
+**Repository: ** https://github.com/adugnaNecho/FUSE-AI-201-network-intrusion-detection
 
 The group reports that the hosted application accepted a CSV upload and generated a prediction. The supplied screenshot shows one illustrative record classified as **DoS**, with displayed maximum class probability **1.00** and severity **High**. This demonstrates the interface flow for that example only; it does not prove that the prediction is correct or that the score is calibrated.
 
