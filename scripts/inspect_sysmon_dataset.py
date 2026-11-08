@@ -172,7 +172,7 @@ def inspect_stream(stream: TextIO, name: str) -> dict[str, Any]:
     if not has_event_specific_fields:
         reasons.append("Raw Event 3 network fields and Event 22 DNS fields are not both available.")
     if not has_group:
-        reasons.append("No explicit capture/session/run identifier was identified for leakage-resistant grouping.")
+        reasons.append("No populated session identifier (capture/session/run ID) was identified for leakage-resistant grouping.")
     if numeric_header_count >= 20 and not any(mapping[field] for field in ("event_id", "timestamp", "process_guid", "image")):
         reasons.append(
             "The CSV looks like a numeric feature/embedding matrix, not raw Sysmon events; "
