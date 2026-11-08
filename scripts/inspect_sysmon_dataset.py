@@ -49,8 +49,12 @@ def map_columns(headers: list[str]) -> dict[str, str | None]:
 
     result: dict[str, str | None] = {}
     for field, aliases in ALIASES.items():
-        candidates = {normalize_name(alias) for alias in aliases}
-        result[field] = next((normalized[key] for key in candidates if key in normalized), None)
+        result[field] = None
+        for alias in aliases:
+            key = normalize_name(alias)
+            if key in normalized:
+                result[field] = normalized[key]
+                break
     return result
 
 
