@@ -141,6 +141,9 @@ def inspect_windows_model(model_path: str | Path, metadata_path: str | Path) -> 
         result["message"] = "Windows model metadata is unreadable or invalid JSON."
         return result
 
+    if not isinstance(metadata, dict):
+        result["message"] = "Windows model metadata must be a JSON object."
+        return result
     if metadata.get("schema_version") != SCHEMA_VERSION:
         result["message"] = f"Model schema must be {SCHEMA_VERSION}."
         return result
