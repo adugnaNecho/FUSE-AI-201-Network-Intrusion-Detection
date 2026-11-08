@@ -23,11 +23,24 @@ from nids_dashboard import (
     traffic_profile,
 )
 from telemetry_client import TelemetryClientError, fetch_live_stats, resolve_setting
+from windows_nids.dashboard import inspect_windows_model, read_prediction_stream
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / DEFAULT_MODEL_PATH
 EVALUATION_PATH = BASE_DIR / "artifacts" / "evaluation.json"
 SAMPLE_PATH = BASE_DIR / "examples" / "sample_input.csv"
+WINDOWS_PREDICTIONS_PATH = Path(
+    os.getenv(
+        "WINDOWS_PREDICTIONS_PATH",
+        r"D:\FUSE AI 201\Sysmon\data\windows_predictions.jsonl",
+    )
+)
+WINDOWS_MODEL_PATH = Path(
+    os.getenv("WINDOWS_MODEL_PATH", str(BASE_DIR / "artifacts" / "windows_nids_model.joblib"))
+)
+WINDOWS_MODEL_METADATA_PATH = Path(
+    os.getenv("WINDOWS_MODEL_METADATA_PATH", str(BASE_DIR / "artifacts" / "windows_nids_model.json"))
+)
 
 st.set_page_config(
     page_title="Group 19 | Network Intrusion Detection",
@@ -332,13 +345,158 @@ def render_live_monitoring():
     )
 
 
+
+
+@st.cache_data(ttl=15, show_spinner=False)
+def cached_windows_model_status(model_path: str, metadata_path: str):
+    """Cache the file/schema/checksum readiness check."""
+    return inspect_windows_model(model_path, metadata_path)
+
+
+@st.fragment(run_every="10s")
+def render_windows_endpoint_monitoring():
+    """Display local Windows predictions written by the Sysmon stream processor."""
+    st.header("Windows Endpoint Monitoring")
+    st.caption("Local Sysmon endpoint stream · 19-feature Windows model · refreshed every 10 seconds")
+
+    st.info(
+        "This view reads the Windows prediction JSONL file on the machine running Streamlit. "
+        "The hosted Streamlit Community Cloud app cannot read files from your personal Windows PC; "
+        "a separately secured remote prediction-storage service is required for a public cloud view."
+    )
+
+    prediction_path = Path(os.getenv("WINDOWS_PREDICTIONS_PATH", str(WINDOWS_PREDICTIONS_PATH)))
+    model_path = Path(os.getenv("WINDOWS_MODEL_PATH", str(WINDOWS_MODEL_PATH)))
+    metadata_path = Path(os.getenv("WINDOWS_MODEL_METADATA_PATH", str(WINDOWS_MODEL_METADATA_PATH)))
+
+    model_status = cached_windows_model_status(str(model_path), str(metadata_path))
+    if model_status["available"]:
+        st.success(
+            f"Windows model files and SHA-256 match · {model_status['model_version']} · "
+            f"{model_status['window_seconds']}-second windows"
+        )
+        st.caption("The stream processor also validates and loads the estimator when it starts.")
+    else:
+        st.warning(f"Windows ML inference is not ready: {model_status['message']}")
+
+    st.caption(f"Prediction file: {prediction_path}")
+    predictions, diagnostics = read_prediction_stream(prediction_path, limit=5000)
+
+    if diagnostics.get("read_error"):
+        st.error(f"Could not read the Windows prediction file: {diagnostics['read_error']}")
+        return
+    if diagnostics["malformed_lines"] or diagnostics["skipped_records"]:
+        st.warning(
+            f"Stream validation skipped {diagnostics['malformed_lines']} malformed line(s) and "
+            f"{diagnostics['skipped_records']} invalid prediction record(s)."
+        )
+    if diagnostics["records_limited"]:
+        st.caption("Showing the latest 5,000 stream lines at most.")
+
+    if not predictions:
+        if not model_status["available"]:
+            st.warning(
+                "No Windows ML predictions are available because a trained, schema-matched Windows model "
+                "has not yet been installed. Feature snapshots are not predictions."
+            )
+        else:
+            st.info(
+                "The Windows model files are ready, but no prediction records have been written. "
+                "Start the Windows stream processor with the model and metadata arguments below."
+            )
+        with st.expander("Start the local Windows inference stream"):
+            runner_command = (
+                '& ".\\.venv\\Scripts\\python.exe" ".\\scripts\\run_windows_stream.py" '
+                '--input "D:\\FUSE AI 201\\Sysmon\\data\\sysmon_events.jsonl" '
+                '--features-output "D:\\FUSE AI 201\\Sysmon\\data\\windows_feature_stream.jsonl" '
+                '--predictions-output "D:\\FUSE AI 201\\Sysmon\\data\\windows_predictions.jsonl" '
+                '--source-id "windows-pc-01" --window-seconds 60 --step-seconds 10 '
+                '--model ".\\artifacts\\windows_nids_model.joblib" '
+                '--metadata ".\\artifacts\\windows_nids_model.json"'
+            )
+            st.code(runner_command, language="powershell")
+            st.caption(
+                "Run the Sysmon collector in an elevated PowerShell window. Run this inference command "
+                "in a second PowerShell window from the repository root. A genuine trained Windows model "
+                "and matching metadata must exist first."
+            )
+        return
+
+    frame = pd.DataFrame(predictions)
+    frame["window_end_utc"] = pd.to_datetime(frame["window_end_utc"], utc=True, errors="coerce")
+    frame = frame.dropna(subset=["window_end_utc"]).sort_values("window_end_utc")
+    if frame.empty:
+        st.info("No timestamp-valid prediction records are available.")
+        return
+
+    needs_review = frame["severity"].astype(str).str.casefold().isin({"review", "high", "critical"})
+    latest_time = frame["window_end_utc"].max()
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Predictions in file", f"{len(frame):,}")
+    col2.metric("Processes represented", f"{frame['process_name'].nunique():,}")
+    col3.metric("Review/high severity", f"{int(needs_review.sum()):,}")
+    col4.metric("Model version(s)", f"{frame['model_version'].nunique():,}")
+    st.caption(f"Latest prediction window (UTC): {latest_time.isoformat()}")
+
+    left, right = st.columns(2)
+    with left:
+        st.subheader("Predicted class distribution")
+        class_counts = frame["predicted_class"].value_counts().rename_axis("Predicted class").to_frame("Snapshots")
+        st.bar_chart(class_counts, height=260)
+    with right:
+        st.subheader("Severity distribution")
+        severity_counts = frame["severity"].value_counts().rename_axis("Severity").to_frame("Snapshots")
+        st.bar_chart(severity_counts, height=260)
+
+    st.subheader("Prediction activity over time")
+    timeline = (
+        frame.assign(bucket=frame["window_end_utc"].dt.floor("5min"))
+        .groupby(["bucket", "predicted_class"])
+        .size()
+        .unstack(fill_value=0)
+        .sort_index()
+    )
+    if not timeline.empty:
+        st.line_chart(timeline, height=260)
+
+    st.subheader("Most recent process predictions")
+    display = frame.sort_values("window_end_utc", ascending=False).copy()
+    display["window_end_utc"] = display["window_end_utc"].dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+    display["confidence"] = display["confidence"].map(lambda value: f"{float(value):.1%}")
+    columns = [
+        column for column in (
+            "window_end_utc",
+            "process_name",
+            "predicted_class",
+            "severity",
+            "confidence",
+            "model_version",
+        ) if column in display.columns
+    ]
+    st.dataframe(display[columns].head(100), width="stretch", hide_index=True)
+    st.download_button(
+        "Download Windows prediction history",
+        data=frame.drop(columns=["class_probabilities"], errors="ignore").to_csv(index=False).encode("utf-8"),
+        file_name="windows_nids_predictions.csv",
+        mime="text/csv",
+        key="windows_prediction_history_download",
+    )
+
+    st.warning(
+        "These are model-generated classifications, not confirmed incidents. Maximum class probability is not "
+        "a calibrated threat probability. Independently labelled ground truth is required to calculate live "
+        "precision, recall, F1-score or false-positive rates."
+    )
+
+
 evaluation, evaluation_source = load_evaluation(EVALUATION_PATH)
 
 st.title("Network Intrusion Detection System")
-st.caption("Group 19 · FUSE AI-201 · NSL-KDD benchmark · Five-class Random Forest + SMOTENC prototype")
+st.caption("Group 19 · FUSE AI-201 · NSL-KDD benchmark and separate Windows endpoint telemetry prototype")
 st.warning(
-    "Research prototype only. It classifies NSL-KDD-style connection records; it does not capture live packets, "
-    "block traffic, or provide production-grade security monitoring."
+    "Research prototype only. The NSL-KDD model classifies 41-feature connection records. The separate Windows "
+    "view reads Sysmon-derived process predictions from a local JSONL stream when a trained Windows-specific model "
+    "is available. Neither path blocks traffic or provides production-grade security monitoring."
 )
 
 try:
@@ -357,7 +515,7 @@ else:
     st.code("artifacts/group19_final_nids_random_forest_pipeline.joblib", language="text")
     st.caption(model_error)
 
-prediction_tab, dashboard_tab, live_tab, about_tab = st.tabs(["CSV Prediction", "Benchmark & Upload Analytics", "Live Monitoring", "About & Limitations"])
+prediction_tab, dashboard_tab, live_tab, windows_tab, about_tab = st.tabs(["CSV Prediction", "Benchmark & Upload Analytics", "Live Monitoring", "Windows Endpoint Monitoring", "About & Limitations"])
 
 with prediction_tab:
     st.header("1. Provide input records")
@@ -416,6 +574,9 @@ with dashboard_tab:
 with live_tab:
     render_live_monitoring()
 
+with windows_tab:
+    render_windows_endpoint_monitoring()
+
 with about_tab:
     st.header("About the model and its limitations")
     st.markdown(
@@ -434,10 +595,16 @@ with about_tab:
         "Treat predictions as triage hints, not definitive incident decisions."
     )
     st.markdown(
-        "**Not implemented:** packet capture and the feature-extraction component that converts actual network flows "
-        "into the model's exact 41-feature training schema. A separate authenticated telemetry API and compatible "
-        "producer must be deployed before the Live Monitoring tab can display incoming readings. Automatic blocking, "
-        "continuous drift monitoring, production alerting, and a guaranteed service level are not provided."
+        "**Windows endpoint path:** the separate Windows Endpoint Monitoring tab reads locally written predictions "
+        "from Sysmon Event ID 3/22 rolling windows when a trained Windows-specific model is installed. The hosted "
+        "Streamlit app cannot access a user's local Windows files; remote Windows display requires a separately "
+        "secured deployment. Automatic blocking, continuous drift monitoring, production alerting, and a guaranteed "
+        "service level are not provided."
+    )
+    st.markdown(
+        "**NSL-KDD path limitation:** packet capture and the feature-extraction component that converts actual network "
+        "flows into the NSL-KDD model's exact 41-feature training schema are not implemented. The existing Live Monitoring "
+        "tab remains a separate authenticated telemetry-API view."
     )
     st.markdown(
         "**Data:** benchmark results come from public NSL-KDD KDDTrain+ / KDDTest+ files. Uploaded CSV analytics "
