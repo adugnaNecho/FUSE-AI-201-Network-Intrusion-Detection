@@ -122,3 +122,23 @@ def test_invalid_network_protocol_is_rejected():
 
     with pytest.raises(ValueError, match="supported TCP/UDP Protocol"):
         build_labelled_windows([row], HEADERS, source_name="fixture")
+
+
+def test_non_feature_sysmon_events_are_used_only_for_label_consistency():
+    start = base_time()
+    rows = [
+        event_row(3, start, 0),
+        event_row(1, start + timedelta(seconds=20), 1),
+        event_row(3, start + timedelta(seconds=70), 1),
+    ]
+
+    windows, stats = build_labelled_windows(
+        rows, HEADERS, source_name="SILRAD synthetic unit fixture"
+    )
+
+    assert stats["feature_event_rows"] == 2
+    assert stats["context_event_rows"] == 1
+    assert stats["ambiguous_windows_excluded"] == 1
+    assert len(windows) == 1
+    assert windows[0]["label"] == "Malicious"
+    assert windows[0]["network_connect_event_count"] == 1
