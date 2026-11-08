@@ -13,10 +13,9 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import ipaddress
 import math
-import re
 from typing import Any, Iterable
 
-from windows_nids.schema import FEATURE_COLUMNS, SCHEMA_VERSION
+from windows_nids.schema import FEATURE_COLUMNS
 from windows_nids.streaming import parse_event_time
 from scripts.inspect_sysmon_dataset import map_columns
 
@@ -49,16 +48,6 @@ def map_source_label(value: Any) -> str:
     if normalized in {"1", "1.0", "ransomware", "malicious"}:
         return "Malicious"
     raise ValueError(f"Unknown source label {value!r}; expected 0/Goodware or 1/Ransomware.")
-
-
-def _number(value: Any, field: str, row_number: int) -> float:
-    try:
-        result = float(str(value).strip())
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"Row {row_number}: {field} must be numeric.") from exc
-    if not math.isfinite(result) or result < 0:
-        raise ValueError(f"Row {row_number}: {field} must be finite and non-negative.")
-    return result
 
 
 def _destination_category(value: str) -> tuple[str | None, str | None, str | None]:
