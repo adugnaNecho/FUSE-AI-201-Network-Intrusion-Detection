@@ -40,6 +40,11 @@ class LabelledSysmonEvent:
     row_number: int
 
 
+def _text(value: Any) -> str:
+    text = "" if value is None else str(value).strip()
+    return "" if text.casefold() in {"", "-", "none", "null", "nan"} else text
+
+
 def map_source_label(value: Any) -> str:
     """Map only documented Goodware/Ransomware labels to Benign/Malicious."""
     normalized = str(value).strip().casefold()
@@ -51,10 +56,11 @@ def map_source_label(value: Any) -> str:
 
 
 def _destination_category(value: str) -> tuple[str | None, str | None, str | None]:
-    if not value or value.strip() in {"-", "None", "null"}:
+    value = _text(value)
+    if not value:
         return None, None, None
     try:
-        address = ipaddress.ip_address(value.strip())
+        address = ipaddress.ip_address(value)
     except ValueError:
         return None, None, None
     prefix = 24 if address.version == 4 else 64
@@ -75,7 +81,7 @@ def _destination_category(value: str) -> tuple[str | None, str | None, str | Non
 
 
 def _bool(value: str) -> bool | None:
-    normalized = value.strip().casefold()
+    normalized = _text(value).casefold()
     if normalized in {"true", "1", "yes"}:
         return True
     if normalized in {"false", "0", "no"}:
@@ -198,33 +204,33 @@ def build_labelled_windows(
     for row_number, row in enumerate(rows, start=2):
         stats["rows_read"] += 1
         try:
-            raw_event_id = str(row.get(mapping["event_id"], "")).strip()
+            raw_event_id = _text(row.get(mapping["event_id"], ""))
             try:
                 event_id = int(float(raw_event_id))
             except ValueError as exc:
                 raise ValueError(f"Row {row_number}: Event ID is not numeric.") from exc
-            session_id = str(row.get(mapping["session_id"], "")).strip()
+            session_id = _text(row.get(mapping["session_id"], ""))
             if not session_id:
                 raise ValueError(f"Row {row_number}: capture/session ID is blank.")
-            process_name = str(row.get(mapping["image"], "")).replace("\\", "/").rsplit("/", 1)[-1].strip().lower()
+            process_name = _text(row.get(mapping["image"], "")).replace("\\", "/").rsplit("/", 1)[-1].strip().lower()
             if not process_name:
                 raise ValueError(f"Row {row_number}: Image/process name is blank.")
-            process_guid = str(row.get(mapping["process_guid"], "")).strip() if mapping.get("process_guid") else ""
-            process_id = str(row.get(mapping["process_id"], "")).strip() if mapping.get("process_id") else ""
+            process_guid = _text(row.get(mapping["process_guid"], "")) if mapping.get("process_guid") else ""
+            process_id = _text(row.get(mapping["process_id"], "")) if mapping.get("process_id") else ""
             process_token = process_guid if process_guid and process_guid != "-" else (
                 f"pid:{process_id}|image:{process_name}" if process_id else ""
             )
             if not process_token:
                 raise ValueError(f"Row {row_number}: no ProcessGuid or usable ProcessId.")
-            event_time = parse_event_time(str(row.get(mapping["timestamp"], "")).strip())
+            event_time = parse_event_time(_text(row.get(mapping["timestamp"], "")))
             label = map_source_label(row.get(mapping["label"], ""))
 
             fields = {
-                "protocol": str(row.get(mapping["protocol"], "") or "") if event_id == 3 else "",
-                "destination_ip": str(row.get(mapping["destination_ip"], "") or "") if event_id == 3 else "",
-                "destination_port": str(row.get(mapping["destination_port"], "") or "") if event_id == 3 else "",
-                "initiated": str(row.get(mapping.get("initiated"), "") or "") if event_id == 3 and mapping.get("initiated") else "",
-                "query_name": str(row.get(mapping["query_name"], "") or "") if event_id == 22 else "",
+                "protocol": _text(row.get(mapping["protocol"], "")) if event_id == 3 else "",
+                "destination_ip": _text(row.get(mapping["destination_ip"], "")) if event_id == 3 else "",
+                "destination_port": _text(row.get(mapping["destination_port"], "")) if event_id == 3 else "",
+                "initiated": _text(row.get(mapping.get("initiated"), "")) if event_id == 3 and mapping.get("initiated") else "",
+                "query_name": _text(row.get(mapping["query_name"], "")) if event_id == 22 else "",
             }
             if event_id == 3 and fields["protocol"].strip().casefold() not in {"tcp", "6", "udp", "17"}:
                 raise ValueError(f"Row {row_number}: Event ID 3 has no supported TCP/UDP Protocol value.")
