@@ -93,7 +93,7 @@ Live telemetry counts are not benchmark metrics. The API records server timestam
 
 The dashboard does not fabricate a confusion matrix or class-level values if they are absent from the source artifact. If Plotly cannot render the FPR chart, the app falls back to a measured FPR table. NSL-KDD has no timestamp in the 41-feature schema, so uploaded-record plots use record order, not time. See `docs/analytics_dashboard_guide.md`, `docs/live_telemetry_setup.md`, and `FPR_CHART_HOTFIX.md`.
 
-The Windows Endpoint Monitoring tab reads a local prediction file by default at `D:\\FUSE AI 201\\Sysmon\\data\\windows_predictions.jsonl`; configure `WINDOWS_PREDICTIONS_PATH` to override it. Run Streamlit on the same Windows computer as the file. The hosted cloud app cannot access a personal Windows filesystem. See `docs/windows_live_dashboard.md` for setup.
+The Windows Endpoint Monitoring tab reads a local prediction file by default at `D:\FUSE AI 201\Sysmon\data\windows_predictions.jsonl`; configure `WINDOWS_PREDICTIONS_PATH` to override it. Run Streamlit on the same Windows computer as the file. The hosted cloud app cannot access a personal Windows filesystem. See `docs/windows_live_dashboard.md` for setup.
 
 ## 5. Model and implementation
 
