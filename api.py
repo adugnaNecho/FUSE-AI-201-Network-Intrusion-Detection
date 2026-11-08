@@ -4,6 +4,7 @@ from __future__ import annotations
 import hmac
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
@@ -11,13 +12,16 @@ from pydantic import BaseModel, Field
 
 from nids_core import DEFAULT_MODEL_PATH, FEATURE_COLUMNS, load_model, predict_records
 from telemetry_store import get_live_stats, store_predictions, validate_source_id
+from windows_nids.inference import WindowsModelBundle, load_windows_model, predict_snapshots
+from windows_nids.schema import FEATURE_COLUMNS as WINDOWS_FEATURE_COLUMNS, SCHEMA_VERSION as WINDOWS_SCHEMA_VERSION
 
 app = FastAPI(
-    title="Group 19 NSL-KDD NIDS API",
-    version="1.1.0",
-    description="Prototype inference and authenticated producer-submitted telemetry API.",
+    title="Group 19 Network Intrusion Detection API",
+    version="1.2.0",
+    description="NSL-KDD benchmark inference plus separate authenticated Windows endpoint telemetry inference.",
 )
 _model = None
+_windows_model: WindowsModelBundle | None = None
 
 
 def get_model():
@@ -25,6 +29,14 @@ def get_model():
     if _model is None:
         _model = load_model(DEFAULT_MODEL_PATH)
     return _model
+
+
+def get_windows_model():
+    """Load the Windows model lazily; no prediction is possible until it exists."""
+    global _windows_model
+    if _windows_model is None:
+        _windows_model = load_windows_model()
+    return _windows_model
 
 
 class PredictionRequest(BaseModel):
@@ -36,12 +48,26 @@ class TelemetryIngestRequest(BaseModel):
     records: list[dict[str, Any]] = Field(min_length=1, max_length=100)
 
 
+class WindowsPredictionRequest(BaseModel):
+    source_id: str = Field(min_length=1, max_length=64)
+    snapshots: list[dict[str, Any]] = Field(min_length=1, max_length=100)
+
+
 def require_telemetry_token(x_api_key: str = Header(default="", alias="X-API-Key")) -> None:
     expected = os.getenv("LIVE_INGEST_API_TOKEN", "")
     if not expected:
         raise HTTPException(status_code=503, detail="Live telemetry is not configured on this API service.")
     if not hmac.compare_digest(x_api_key, expected):
         raise HTTPException(status_code=401, detail="Invalid telemetry API key.")
+
+
+def require_windows_token(x_api_key: str = Header(default="", alias="X-API-Key")) -> None:
+    # Prefer a dedicated token; fallback allows a single-producer prototype deployment.
+    expected = os.getenv("WINDOWS_INGEST_API_TOKEN") or os.getenv("LIVE_INGEST_API_TOKEN", "")
+    if not expected:
+        raise HTTPException(status_code=503, detail="Windows telemetry inference is not configured on this API service.")
+    if not hmac.compare_digest(x_api_key, expected):
+        raise HTTPException(status_code=401, detail="Invalid Windows telemetry API key.")
 
 
 @app.get("/health")
@@ -62,6 +88,23 @@ def schema():
     }
 
 
+@app.get("/windows/schema")
+def windows_schema():
+    model_path = Path(os.getenv("WINDOWS_MODEL_PATH", "artifacts/windows_nids_model.joblib"))
+    metadata_path = Path(os.getenv("WINDOWS_MODEL_METADATA_PATH", "artifacts/windows_nids_model.json"))
+    files_present = model_path.is_file() and metadata_path.is_file()
+    return {
+        "schema_version": WINDOWS_SCHEMA_VERSION,
+        "required_features": WINDOWS_FEATURE_COLUMNS,
+        "feature_count": len(WINDOWS_FEATURE_COLUMNS),
+        "max_snapshots_per_request": 100,
+        "prediction_endpoint": "/windows/predict",
+        "prediction_requires_api_key": True,
+        "model_files_present": files_present,
+        "model_note": "Predictions remain unavailable until a trained and schema-matched Windows model is installed.",
+    }
+
+
 @app.post("/predict")
 def predict(request: PredictionRequest):
     try:
@@ -77,7 +120,7 @@ def predict(request: PredictionRequest):
 
 @app.post("/telemetry/ingest", status_code=202)
 def ingest_telemetry(request: TelemetryIngestRequest, _auth: None = Depends(require_telemetry_token)):
-    """Classify up to 100 external feature records; persist prediction summaries only."""
+    """Classify NSL-KDD-compatible records; persist prediction summaries only."""
     try:
         source_id = validate_source_id(request.source_id)
         predictions = predict_records(get_model(), request.records)
@@ -98,6 +141,40 @@ def ingest_telemetry(request: TelemetryIngestRequest, _auth: None = Depends(requ
             name: int(counts.get(name, 0)) for name in ("Normal", "DoS", "Probe", "U2R", "R2L")
         },
         "raw_features_stored": False,
+    }
+
+
+@app.post("/windows/predict")
+def predict_windows(request: WindowsPredictionRequest, _auth: None = Depends(require_windows_token)):
+    """Predict from Windows-schema rolling snapshots; raw features are not persisted."""
+    try:
+        source_id = validate_source_id(request.source_id)
+        for snapshot in request.snapshots:
+            if not isinstance(snapshot, dict) or snapshot.get("source_id") != source_id:
+                raise ValueError("Each snapshot source_id must match the request source_id.")
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    try:
+        bundle = get_windows_model()
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=f"Windows model is not ready: {exc}") from exc
+
+    try:
+        predictions = predict_snapshots(bundle, request.snapshots)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Windows inference failed. Check server logs.") from exc
+
+    return {
+        "source_id": source_id,
+        "schema_version": WINDOWS_SCHEMA_VERSION,
+        "model_version": bundle.model_version,
+        "accepted": len(predictions),
+        "predictions": predictions,
+        "raw_features_stored": False,
+        "ground_truth_available": False,
     }
 
 
