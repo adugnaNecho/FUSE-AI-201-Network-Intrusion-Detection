@@ -13,11 +13,19 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import ipaddress
 import math
+import re
 from typing import Any, Iterable
 
 from windows_nids.schema import FEATURE_COLUMNS, SCHEMA_VERSION
 from windows_nids.streaming import parse_event_time
 from scripts.inspect_sysmon_dataset import map_columns
+
+
+RFC1918_NETWORKS = tuple(
+    ipaddress.ip_network(value)
+    for value in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+)
+IPV6_ULA = ipaddress.ip_network("fc00::/7")
 
 
 @dataclass(frozen=True)
@@ -64,7 +72,9 @@ def _destination_category(value: str) -> tuple[str | None, str | None, str | Non
     subnet = str(ipaddress.ip_network(f"{address}/{prefix}", strict=False))
     if address.is_global:
         category = "global"
-    elif address.is_private:
+    elif address.version == 4 and any(address in net for net in RFC1918_NETWORKS):
+        category = "private"
+    elif address.version == 6 and address in IPV6_ULA:
         category = "private"
     elif address.is_loopback:
         category = "loopback"
