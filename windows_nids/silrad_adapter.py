@@ -188,7 +188,8 @@ def build_labelled_windows(
     stats = {
         "rows_read": 0,
         "eligible_event_rows": 0,
-        "ignored_other_event_ids": 0,
+        "feature_event_rows": 0,
+        "context_event_rows": 0,
         "invalid_rows": 0,
         "ambiguous_windows_excluded": 0,
         "windows_written": 0,
@@ -202,10 +203,6 @@ def build_labelled_windows(
                 event_id = int(float(raw_event_id))
             except ValueError as exc:
                 raise ValueError(f"Row {row_number}: Event ID is not numeric.") from exc
-            if event_id not in (3, 22):
-                stats["ignored_other_event_ids"] += 1
-                continue
-
             session_id = str(row.get(mapping["session_id"], "")).strip()
             if not session_id:
                 raise ValueError(f"Row {row_number}: capture/session ID is blank.")
@@ -223,11 +220,11 @@ def build_labelled_windows(
             label = map_source_label(row.get(mapping["label"], ""))
 
             fields = {
-                "protocol": str(row.get(mapping["protocol"], "") or ""),
-                "destination_ip": str(row.get(mapping["destination_ip"], "") or ""),
-                "destination_port": str(row.get(mapping["destination_port"], "") or ""),
-                "initiated": str(row.get(mapping.get("initiated"), "") or "") if mapping.get("initiated") else "",
-                "query_name": str(row.get(mapping["query_name"], "") or ""),
+                "protocol": str(row.get(mapping["protocol"], "") or "") if event_id == 3 else "",
+                "destination_ip": str(row.get(mapping["destination_ip"], "") or "") if event_id == 3 else "",
+                "destination_port": str(row.get(mapping["destination_port"], "") or "") if event_id == 3 else "",
+                "initiated": str(row.get(mapping.get("initiated"), "") or "") if event_id == 3 and mapping.get("initiated") else "",
+                "query_name": str(row.get(mapping["query_name"], "") or "") if event_id == 22 else "",
             }
             if event_id == 3 and fields["protocol"].strip().casefold() not in {"tcp", "6", "udp", "17"}:
                 raise ValueError(f"Row {row_number}: Event ID 3 has no supported TCP/UDP Protocol value.")
@@ -247,6 +244,10 @@ def build_labelled_windows(
             )
             by_process[(session_id, process_key)].append(event)
             stats["eligible_event_rows"] += 1
+            if event_id in (3, 22):
+                stats["feature_event_rows"] += 1
+            else:
+                stats["context_event_rows"] += 1
 
         except (ValueError, TypeError, OverflowError) as exc:
             stats["invalid_rows"] += 1
@@ -255,8 +256,8 @@ def build_labelled_windows(
     output: list[dict[str, Any]] = []
     label_source = (
         f"{source_name}; event-level source labels mapped as 0=Goodware/Benign, "
-        "1=Ransomware/Malicious; labels are inherited only when all eligible events "
-        "for the same process in the window agree."
+        "1=Ransomware/Malicious; labels are inherited only when all source events "
+        "for the same process in the window agree. Only Event ID 3/22 contribute features."
     )
 
     for (session_id, _process_key), process_events in by_process.items():
@@ -279,6 +280,9 @@ def build_labelled_windows(
             active = process_events[left:right]
             if not active:
                 continue
+            feature_events = [event for event in active if event.event_id in (3, 22)]
+            if not feature_events:
+                continue
 
             labels = {event.label for event in active}
             if len(labels) != 1:
@@ -286,7 +290,7 @@ def build_labelled_windows(
                 continue
 
             label = next(iter(labels))
-            features = _features(active)
+            features = _features(feature_events)
             start = datetime.fromtimestamp(start_epoch, tz=timezone.utc)
             end = datetime.fromtimestamp(end_epoch, tz=timezone.utc)
             end_epoch_int = int(end_epoch)
