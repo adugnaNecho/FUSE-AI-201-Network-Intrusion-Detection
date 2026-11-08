@@ -94,8 +94,11 @@ def main() -> int:
         writer.writerows(rows)
 
     label_counts: dict[str, int] = {}
+    sessions_per_class: dict[str, set[str]] = {}
     for row in rows:
         label_counts[row["label"]] = label_counts.get(row["label"], 0) + 1
+        sessions_per_class.setdefault(row["label"], set()).add(row["session_id"])
+    session_counts = {label: len(sessions) for label, sessions in sessions_per_class.items()}
 
     report = {
         "source_file": member_name,
@@ -105,6 +108,7 @@ def main() -> int:
         "step_seconds": args.step_seconds,
         "labelled_windows": len(rows),
         "class_counts": label_counts,
+        "distinct_sessions_per_class": session_counts,
         **stats,
         "output": str(args.output),
         "note": (
@@ -116,6 +120,7 @@ def main() -> int:
     print(f"Source CSV: {member_name}")
     print(f"Labelled windows written: {len(rows):,} -> {args.output}")
     print(f"Class counts: {label_counts}")
+    print(f"Distinct sessions per class: {session_counts}")
     for key, value in stats.items():
         print(f"{key}: {value:,}")
     print(report["note"])
