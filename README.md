@@ -8,7 +8,24 @@
 > **Public GitHub repository:** https://github.com/adugnaNecho/FUSE-AI-201-Network-Intrusion-Detection  
 > **Source hotfix commit:** `8941226` — FPR chart data handling and table fallback.
 
-**Prototype scope:** This research prototype classifies uploaded NSL-KDD-style connection records. It does not capture live packets, block traffic, or provide production-grade security monitoring. The maximum class probability displayed as confidence is not a calibrated guarantee.
+**Prototype scope:** The application retains the NSL-KDD benchmark and uploaded-CSV workflows, and now includes an optional Live Monitoring interface for predictions submitted by an authenticated external producer. The application does not capture packets or transform raw traffic into the model's 41-feature schema. Live monitoring remains inactive until a compatible producer and separate persistent telemetry API are deployed. The maximum class probability is not a calibrated guarantee.
+
+## Live telemetry statistics
+
+<!-- LIVE_NIDS_STATS_START -->
+
+### Live telemetry statistics
+
+> No live telemetry has been connected yet. This section will be populated only from timestamped predictions received by the authenticated external telemetry API. It is separate from the NSL-KDD benchmark results below.
+
+**Status:** Waiting for a compatible live producer.  
+**Live data requirement:** An external producer must provide all 41 model features. Raw packets, Zeek logs, and CICFlowMeter records are not automatically compatible with the current NSL-KDD model.
+
+The API stores prediction summaries, not raw feature rows. It cannot calculate live accuracy without independently supplied ground-truth labels, and it cannot independently verify the producer's traffic-capture provenance.
+
+<sub>Once configured, GitHub Actions refreshes this block approximately every 15 minutes. Scheduled jobs may be delayed. The Streamlit Live Monitoring tab polls the API every 10 seconds while the app session is active.</sub>
+
+<!-- LIVE_NIDS_STATS_END -->
 
 ## 1. Project purpose
 
@@ -69,8 +86,11 @@ The dashboard includes:
 - Consistent class order: Normal, DoS, Probe, U2R, R2L.
 - Integer support counts and percentage-formatted FPR displays.
 - Uploaded-record class/severity counts, traffic-feature profiles by record order, and maximum class probabilities after prediction.
+- A separate **Live Monitoring** tab that polls the authenticated telemetry API every 10 seconds when configured. It reports producer-submitted predictions only and never substitutes benchmark or uploaded-file statistics for live readings.
 
-The dashboard does not fabricate a confusion matrix or class-level values if they are absent from the source artifact. If Plotly cannot render the FPR chart, the app falls back to a measured FPR table. NSL-KDD has no timestamp in the 41-feature schema, so uploaded-record plots use record order, not time. See `docs/analytics_dashboard_guide.md` and `FPR_CHART_HOTFIX.md`.
+Live telemetry counts are not benchmark metrics. The API records server timestamps, producer ID, predicted class, maximum class probability, and severity; it deliberately does not persist raw feature vectors. Since no ground-truth labels are supplied with the live stream, the app does not report live accuracy, precision, recall, F1-score, or a live confusion matrix.
+
+The dashboard does not fabricate a confusion matrix or class-level values if they are absent from the source artifact. If Plotly cannot render the FPR chart, the app falls back to a measured FPR table. NSL-KDD has no timestamp in the 41-feature schema, so uploaded-record plots use record order, not time. See `docs/analytics_dashboard_guide.md`, `docs/live_telemetry_setup.md`, and `FPR_CHART_HOTFIX.md`.
 
 ## 5. Model and implementation
 
@@ -130,9 +150,9 @@ The trained `.joblib` pipeline, class mapping, `evaluation.json`, and SHA-256 si
 
 ## 8. Deployment and maintenance status
 
-The Streamlit app URL is listed above. GitHub stores source and model artifacts; Streamlit Community Cloud hosts the interactive app. The FPR chart hotfix was committed as source commit `8941226`. The group must confirm that Streamlit Community Cloud rebuilt from that commit and that the dashboard/FPR table fallback opens without an unhandled error.
+The Streamlit app URL is listed above. GitHub stores source and model artifacts; Streamlit Community Cloud hosts the interactive app. The FPR chart hotfix was committed as source commit `8941226`. The Live Monitoring interface is implemented, but it will show a configuration message until a separate FastAPI telemetry service, persistent PostgreSQL database, Streamlit secrets, GitHub Actions secrets, and a compatible external producer have been configured. See `docs/live_telemetry_setup.md` for deployment and verification steps.
 
-The monitoring, drift detection, retraining, shadow deployment, fallback IDS, privacy and support processes in `docs/monitoring_support_maintenance.md` are proposed plans for a future controlled pilot. They are not active continuous-monitoring services in the current prototype.
+The monitoring, drift detection, retraining, shadow deployment, fallback IDS, privacy and support processes in `docs/monitoring_support_maintenance.md` remain proposed plans for a future controlled pilot. The new telemetry code provides an ingestion and display path, but it does not capture packets or supply the missing live 41-feature extraction component. A compatible producer must be connected before the service can report live network-derived predictions.
 
 ## 9. Data disclosure and responsible use
 
