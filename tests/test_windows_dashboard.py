@@ -97,3 +97,15 @@ def test_model_status_rejects_checksum_mismatch(tmp_path):
 
     assert status["available"] is False
     assert "SHA-256" in status["message"]
+
+
+def test_model_status_rejects_non_object_metadata(tmp_path):
+    artifact = tmp_path / "model.joblib"
+    artifact.write_bytes(b"artifact")
+    metadata = tmp_path / "model.json"
+    metadata.write_text("[]", encoding="utf-8")
+
+    status = inspect_windows_model(artifact, metadata)
+
+    assert status["available"] is False
+    assert "JSON object" in status["message"]
