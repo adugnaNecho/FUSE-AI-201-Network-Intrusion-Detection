@@ -2,6 +2,7 @@
 from pathlib import Path
 import hashlib
 import io
+import os
 
 import pandas as pd
 import plotly.express as px
@@ -21,6 +22,7 @@ from nids_dashboard import (
     severity_distribution,
     traffic_profile,
 )
+from telemetry_client import TelemetryClientError, fetch_live_stats, resolve_setting
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / DEFAULT_MODEL_PATH
@@ -258,6 +260,78 @@ def render_dashboard(evaluation: dict, evaluation_source: str):
     )
 
 
+
+@st.fragment(run_every="10s")
+def render_live_monitoring():
+    """Show only timestamped prediction events received by the telemetry API."""
+    st.header("Live network telemetry")
+    st.caption("Authenticated producer-submitted predictions · API polling every 10 seconds · UTC timestamps")
+
+    try:
+        secret_store = st.secrets
+    except Exception:
+        secret_store = None
+    api_url = resolve_setting("LIVE_STATS_API_URL", secret_store)
+    api_token = resolve_setting("LIVE_STATS_API_TOKEN", secret_store)
+
+    if not api_url or not api_token:
+        st.info(
+            "Live monitoring is not connected yet. Configure LIVE_STATS_API_URL and "
+            "LIVE_STATS_API_TOKEN in Streamlit Community Cloud secrets, deploy the separate "
+            "FastAPI telemetry service, and connect a trusted producer that emits all 41 model features."
+        )
+        st.markdown("Setup instructions: [docs/live_telemetry_setup.md](https://github.com/adugnaNecho/FUSE-AI-201-Network-Intrusion-Detection/blob/main/docs/live_telemetry_setup.md)")
+        st.caption("This app does not capture packets. Uploaded CSV records and NSL-KDD benchmark results are not treated as live telemetry.")
+        return
+
+    try:
+        stats = fetch_live_stats(api_url, api_token, window_hours=24, timeout=5.0)
+    except TelemetryClientError as exc:
+        st.error(str(exc))
+        st.caption("Live data is unavailable. Benchmark and uploaded-file analytics remain separate and unchanged.")
+        return
+
+    if stats.get("status") == "live":
+        st.success("The telemetry API has received producer-submitted predictions in the last 24 hours.")
+    else:
+        st.info("The telemetry API is reachable, but it has received no records in the last 24 hours.")
+
+    st.caption("Data origin: authenticated external producer submissions. The API stores prediction summaries only; producer provenance is not independently verified.")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Predictions received · 24h", f"{int(stats.get('total_events_window', 0)):,}")
+    c2.metric("Predictions recorded · all time", f"{int(stats.get('total_events_all_time', 0)):,}")
+    c3.metric("Active producer IDs · 24h", f"{int(stats.get('active_sources_window', 0)):,}")
+
+    last_received = stats.get("last_received_at") or "No readings received"
+    st.caption(f"Last reading received (UTC): {last_received} · API snapshot: {stats.get('generated_at', 'unknown')}")
+
+    st.subheader("Live predicted-class distribution · last 24 hours")
+    class_counts = stats.get("class_counts", {})
+    class_frame = pd.DataFrame.from_dict(class_counts, orient="index", columns=["Predicted records"])
+    class_frame = class_frame.reindex(CLASS_NAMES).fillna(0).astype(int)
+    st.bar_chart(class_frame, height=280)
+
+    st.subheader("Incoming prediction volume · last hour")
+    timeline = pd.DataFrame(stats.get("timeline_5m_last_hour", []))
+    if not timeline.empty and "timestamp" in timeline.columns:
+        timeline["timestamp"] = pd.to_datetime(timeline["timestamp"], utc=True, errors="coerce")
+        timeline = timeline.dropna(subset=["timestamp"]).set_index("timestamp")
+        for class_name in CLASS_NAMES:
+            if class_name not in timeline:
+                timeline[class_name] = 0
+        st.line_chart(timeline[CLASS_NAMES], height=300)
+        if stats.get("timeline_truncated"):
+            st.caption("The timeline is based on a bounded sample of the latest 20,000 event records. Summary totals use database counts.")
+    else:
+        st.info("No recent event timeline is available yet.")
+
+    st.warning(
+        "These are model predictions, not confirmed attacks. The incoming stream has no independently verified "
+        "ground-truth labels, so live accuracy, precision, recall, F1-score, and a confusion matrix are not calculated. "
+        "Maximum class probability is not a calibrated incident probability."
+    )
+
+
 evaluation, evaluation_source = load_evaluation(EVALUATION_PATH)
 
 st.title("Network Intrusion Detection System")
@@ -283,7 +357,7 @@ else:
     st.code("artifacts/group19_final_nids_random_forest_pipeline.joblib", language="text")
     st.caption(model_error)
 
-prediction_tab, dashboard_tab, about_tab = st.tabs(["CSV Prediction", "Analytics Dashboard", "About & Limitations"])
+prediction_tab, dashboard_tab, live_tab, about_tab = st.tabs(["CSV Prediction", "Benchmark & Upload Analytics", "Live Monitoring", "About & Limitations"])
 
 with prediction_tab:
     st.header("1. Provide input records")
@@ -339,6 +413,9 @@ with prediction_tab:
 with dashboard_tab:
     render_dashboard(evaluation, evaluation_source)
 
+with live_tab:
+    render_live_monitoring()
+
 with about_tab:
     st.header("About the model and its limitations")
     st.markdown(
@@ -357,14 +434,16 @@ with about_tab:
         "Treat predictions as triage hints, not definitive incident decisions."
     )
     st.markdown(
-        "**Not implemented:** live traffic capture, packet inspection, automated blocking, continuous drift monitoring, "
-        "production alerting, or a guaranteed service level. The monitoring and maintenance procedures are proposed "
-        "for a future controlled pilot."
+        "**Not implemented:** packet capture and the feature-extraction component that converts actual network flows "
+        "into the model's exact 41-feature training schema. A separate authenticated telemetry API and compatible "
+        "producer must be deployed before the Live Monitoring tab can display incoming readings. Automatic blocking, "
+        "continuous drift monitoring, production alerting, and a guaranteed service level are not provided."
     )
     st.markdown(
-        "**Data:** public NSL-KDD KDDTrain+ / KDDTest+ benchmark files. The repository's sample CSV is illustrative; "
-        "no live organizational traffic is used in this demonstration."
+        "**Data:** benchmark results come from public NSL-KDD KDDTrain+ / KDDTest+ files. Uploaded CSV analytics "
+        "describe only the uploaded records. Live statistics, when configured, describe timestamped predictions received "
+        "from an external producer; the API does not independently verify their source."
     )
 
 st.divider()
-st.caption("Group 19 · FUSE AI-201 · Public research prototype · No live network traffic is captured or transmitted by this application.")
+st.caption("Group 19 · FUSE AI-201 · Public research prototype · Packet capture is external; live telemetry is displayed only when a compatible authenticated producer is connected.")
