@@ -148,10 +148,12 @@ class RollingWindowAggregator:
         return True
 
     def _expire(self, cutoff: datetime) -> None:
-        while self._events and self._events[0].event_time < cutoff:
-            expired = self._events.popleft()
-            if expired.record_id is not None:
-                self._seen_record_ids.discard(expired.record_id)
+        # Concurrent providers can yield slightly out-of-order UtcTime values.
+        # Filter the full deque so late older events cannot survive the window.
+        self._events = deque(event for event in self._events if event.event_time >= cutoff)
+        self._seen_record_ids = {
+            event.record_id for event in self._events if event.record_id is not None
+        }
 
     def snapshot(self, as_of: datetime | None = None) -> list[dict[str, Any]]:
         end = (as_of or datetime.now(timezone.utc)).astimezone(timezone.utc)
@@ -160,7 +162,7 @@ class RollingWindowAggregator:
         groups: dict[str, dict[str, Any]] = {}
 
         for event in self._events:
-            if event.event_time > end:
+            if event.event_time < start or event.event_time > end:
                 continue
             group = groups.setdefault(event.process_key, {
                 "process_name": event.process_name,

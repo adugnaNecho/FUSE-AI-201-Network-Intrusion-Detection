@@ -60,6 +60,18 @@ def test_rolling_window_expires_old_events():
     assert features["tcp_event_count"] == 0
 
 
+def test_out_of_order_event_time_does_not_keep_expired_records():
+    aggregator = RollingWindowAggregator("test-pc", window_seconds=60)
+    aggregator.ingest_record(event(3, 1, "2026-11-08 09:10:50.000", Protocol="tcp", Initiated="true",
+                                   DestinationIp="8.8.8.8", DestinationPort="443"))
+    aggregator.ingest_record(event(3, 2, "2026-11-08 09:10:00.000", Protocol="udp", Initiated="false",
+                                   DestinationIp="8.8.4.4", DestinationPort="443"))
+    snapshot = aggregator.snapshot(stamp("2026-11-08T09:11:10Z"))[0]
+    assert snapshot["features"]["network_connect_event_count"] == 1
+    assert snapshot["features"]["tcp_event_count"] == 1
+    assert snapshot["features"]["udp_event_count"] == 0
+
+
 def test_unknown_and_malformed_records_are_counted():
     aggregator = RollingWindowAggregator("test-pc")
     assert not aggregator.ingest_line("not-json")

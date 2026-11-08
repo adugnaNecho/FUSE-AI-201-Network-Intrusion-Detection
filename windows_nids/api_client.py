@@ -3,12 +3,21 @@ from __future__ import annotations
 
 import json
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 
 def send_snapshots(api_url: str, token: str, source_id: str, snapshots: list[dict], timeout: float = 15.0) -> list[dict]:
     if not api_url.strip() or not token.strip():
         raise ValueError("Both API URL and API token are required.")
+    parsed = urlparse(api_url)
+    local_hosts = {"localhost", "127.0.0.1", "::1"}
+    if not parsed.netloc or (
+        parsed.scheme != "https"
+        and not (parsed.scheme == "http" and parsed.hostname in local_hosts)
+    ):
+        raise ValueError("Use HTTPS for remote inference. HTTP is permitted only for localhost testing.")
+
     predictions: list[dict] = []
     for offset in range(0, len(snapshots), 100):
         chunk = snapshots[offset:offset + 100]
