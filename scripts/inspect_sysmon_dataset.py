@@ -103,6 +103,8 @@ def inspect_stream(stream: TextIO, name: str) -> dict[str, Any]:
     rows_with_process_id_and_image = 0
     rows_with_network_fields = 0
     rows_with_dns_fields = 0
+    rows_with_session_id = 0
+    session_values: set[str] = set()
     numeric_header_count = sum(
         1 for h in headers if re.fullmatch(r"(?:feature[_ -]?)?\d+", h.strip(), flags=re.I)
     )
@@ -130,10 +132,20 @@ def inspect_stream(stream: TextIO, name: str) -> dict[str, Any]:
         ):
             rows_with_process_id_and_image += 1
 
-        if all(mapping[field] and row.get(mapping[field], "").strip() for field in NETWORK_FIELDS):
+        if event_id in {"3", "3.0"} and all(
+            mapping[field] and row.get(mapping[field], "").strip()
+            for field in NETWORK_FIELDS
+        ):
             rows_with_network_fields += 1
-        if all(mapping[field] and row.get(mapping[field], "").strip() for field in DNS_FIELDS):
+        if event_id in {"22", "22.0"} and all(
+            mapping[field] and row.get(mapping[field], "").strip()
+            for field in DNS_FIELDS
+        ):
             rows_with_dns_fields += 1
+        session_column = mapping["session_id"]
+        if session_column and row.get(session_column, "").strip():
+            rows_with_session_id += 1
+            session_values.add(row[session_column].strip())
 
     event_ids = {str(value).strip() for value in event_counts}
     has_event_3 = bool(event_ids.intersection({"3", "3.0"}))
@@ -142,7 +154,7 @@ def inspect_stream(stream: TextIO, name: str) -> dict[str, Any]:
     has_identity = rows_with_process_guid > 0 or rows_with_process_id_and_image > 0
     has_labels = rows_with_label > 0
     has_event_specific_fields = rows_with_network_fields > 0 and rows_with_dns_fields > 0
-    has_group = bool(mapping["session_id"])
+    has_group = rows_with_session_id > 0
 
     reasons: list[str] = []
     if not has_labels:
@@ -183,6 +195,8 @@ def inspect_stream(stream: TextIO, name: str) -> dict[str, Any]:
         "rows_with_process_id_and_image": rows_with_process_id_and_image,
         "rows_with_event3_network_fields": rows_with_network_fields,
         "rows_with_event22_dns_fields": rows_with_dns_fields,
+        "rows_with_session_id": rows_with_session_id,
+        "distinct_session_ids": len(session_values),
         "numeric_feature_like_headers": numeric_header_count,
         "has_explicit_session_group": has_group,
         "compatible_for_19_feature_window_reconstruction": compatible,
