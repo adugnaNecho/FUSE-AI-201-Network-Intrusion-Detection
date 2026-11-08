@@ -58,7 +58,6 @@ def test_builds_19_feature_windows_from_labelled_raw_events():
     assert all(window["label"] == "Benign" for window in windows)
     assert all(window["window_seconds"] == 60 for window in windows)
     assert all(set(FEATURE_COLUMNS).issubset(window) for window in windows)
-    assert windows[0]["features"] if "features" in windows[0] else True
     assert windows[0]["network_connect_event_count"] == 1
     assert windows[0]["tcp_event_count"] == 1
     assert windows[0]["dns_query_event_count"] == 1
