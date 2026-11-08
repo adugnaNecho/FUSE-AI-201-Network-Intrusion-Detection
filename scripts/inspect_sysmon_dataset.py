@@ -132,15 +132,9 @@ def inspect_stream(stream: TextIO, name: str) -> dict[str, Any]:
         ):
             rows_with_process_id_and_image += 1
 
-        if event_id in {"3", "3.0"} and all(
-            mapping[field] and row.get(mapping[field], "").strip()
-            for field in NETWORK_FIELDS
-        ):
+        if event_id in {"3", "3.0"} and mapping.get("protocol") and row.get(mapping["protocol"], "").strip():
             rows_with_network_fields += 1
-        if event_id in {"22", "22.0"} and all(
-            mapping[field] and row.get(mapping[field], "").strip()
-            for field in DNS_FIELDS
-        ):
+        if event_id in {"22", "22.0"} and mapping.get("query_name"):
             rows_with_dns_fields += 1
         session_column = mapping["session_id"]
         if session_column and row.get(session_column, "").strip():
@@ -153,7 +147,11 @@ def inspect_stream(stream: TextIO, name: str) -> dict[str, Any]:
     has_time = rows_with_timestamp > 0
     has_identity = rows_with_process_guid > 0 or rows_with_process_id_and_image > 0
     has_labels = rows_with_label > 0
-    has_event_specific_fields = rows_with_network_fields > 0 and rows_with_dns_fields > 0
+    has_event_specific_fields = (
+        all(mapping.get(field) for field in ("protocol", "destination_ip", "destination_port", "query_name"))
+        and rows_with_network_fields > 0
+        and rows_with_dns_fields > 0
+    )
     has_group = rows_with_session_id > 0
 
     reasons: list[str] = []
