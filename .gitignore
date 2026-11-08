@@ -15,3 +15,9 @@ artifacts/*.pkl
 artifacts/*.model
 group19_nids_predictions.csv
 nids_predictions.csv
+# Local Windows model evaluation outputs (do not publish endpoint-derived files)
+artifacts/windows_nids_model.json
+artifacts/windows_nids_model.sha256
+artifacts/windows_nids_evaluation.json
+artifacts/windows_nids_holdout_predictions.csv
+artifacts/windows_nids_live_evaluation.json

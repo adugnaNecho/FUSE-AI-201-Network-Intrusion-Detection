@@ -1,7 +1,8 @@
-"""Validated, fail-closed inference adapter for a future Windows-specific model."""
+"""Validated, fail-closed inference adapter for a trained Windows-specific model."""
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -22,6 +23,7 @@ class WindowsModelBundle:
     model_version: str
     classes: list[str]
     severity_mapping: dict[str, str]
+    window_seconds: int = 60
 
 
 def _estimator_classes(model: Any) -> list[str]:
@@ -38,7 +40,7 @@ def load_windows_model(
     model_path: str | Path | None = None,
     metadata_path: str | Path | None = None,
 ) -> WindowsModelBundle:
-    """Load a trusted, versioned model whose metadata matches this feature schema."""
+    """Load a trusted model only when its metadata matches the feature contract."""
     model_path = Path(model_path or os.getenv("WINDOWS_MODEL_PATH", DEFAULT_WINDOWS_MODEL_PATH))
     metadata_path = Path(metadata_path or os.getenv("WINDOWS_MODEL_METADATA_PATH", DEFAULT_WINDOWS_METADATA_PATH))
     if not model_path.is_file():
@@ -53,11 +55,26 @@ def load_windows_model(
         raise ValueError(f"Model metadata schema_version must be '{SCHEMA_VERSION}'.")
     if metadata.get("feature_columns") != FEATURE_COLUMNS:
         raise ValueError("Windows model feature_columns do not match the current feature schema.")
+    try:
+        window_seconds = int(metadata.get("window_seconds", 60))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Model metadata window_seconds must be a positive integer.") from exc
+    if window_seconds <= 0:
+        raise ValueError("Model metadata window_seconds must be a positive integer.")
     classes = metadata.get("classes")
     if not isinstance(classes, list) or len(classes) < 2 or not all(isinstance(v, str) and v for v in classes):
         raise ValueError("Model metadata must declare at least two string class labels.")
     if len(set(classes)) != len(classes):
         raise ValueError("Model metadata contains duplicate class labels.")
+    expected_hash = metadata.get("model_sha256")
+    if not isinstance(expected_hash, str) or len(expected_hash) != 64:
+        raise ValueError("Model metadata must declare the artifact SHA-256 checksum.")
+    digest = hashlib.sha256()
+    with model_path.open("rb") as artifact:
+        for chunk in iter(lambda: artifact.read(1024 * 1024), b""):
+            digest.update(chunk)
+    if digest.hexdigest().lower() != expected_hash.lower():
+        raise ValueError("Windows model artifact SHA-256 does not match its metadata.")
     try:
         model = joblib.load(model_path)
     except Exception as exc:
@@ -75,14 +92,21 @@ def load_windows_model(
         model_version=str(metadata.get("model_version", "unversioned")),
         classes=classes,
         severity_mapping={str(k): str(v) for k, v in severity_mapping.items()},
+        window_seconds=window_seconds,
     )
 
 
 def predict_snapshots(bundle: WindowsModelBundle, snapshots: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Classify validated snapshots. Max probability is not a calibrated threat score."""
+    """Classify validated snapshots. Maximum class probability is not calibrated."""
     if not snapshots:
         return []
     validated = [validate_snapshot(item) for item in snapshots]
+    wrong_windows = sorted({item["window_seconds"] for item in validated if item["window_seconds"] != bundle.window_seconds})
+    if wrong_windows:
+        raise ValueError(
+            f"Snapshot window_seconds {wrong_windows} does not match the model's "
+            f"{bundle.window_seconds}-second training window."
+        )
     ids = [item["snapshot_id"] for item in validated]
     if len(ids) != len(set(ids)):
         raise ValueError("Duplicate snapshot_id values in one inference batch.")
@@ -108,7 +132,7 @@ def predict_snapshots(bundle: WindowsModelBundle, snapshots: list[dict[str, Any]
             "process_instance_id": snapshot["process_instance_id"],
             "predicted_class": label,
             "confidence": max(row_probabilities.values()),
-            "severity": bundle.severity_mapping.get(label, "Unassigned"),
+            "severity": bundle.severity_mapping.get(label, "Review"),
             "class_probabilities": row_probabilities,
             "model_version": bundle.model_version,
             "ground_truth_available": False,
