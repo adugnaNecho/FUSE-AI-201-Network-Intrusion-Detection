@@ -87,10 +87,13 @@ The dashboard includes:
 - Integer support counts and percentage-formatted FPR displays.
 - Uploaded-record class/severity counts, traffic-feature profiles by record order, and maximum class probabilities after prediction.
 - A separate **Live Monitoring** tab that polls the authenticated telemetry API every 10 seconds when configured. It reports producer-submitted predictions only and never substitutes benchmark or uploaded-file statistics for live readings.
+- A separate **Windows Endpoint Monitoring** tab that reads the local Sysmon prediction JSONL file every 10 seconds when a trained Windows-specific model is active. This local view is distinct from the NSL-KDD Live Monitoring tab and does not make a personal Windows file visible to Streamlit Community Cloud.
 
 Live telemetry counts are not benchmark metrics. The API records server timestamps, producer ID, predicted class, maximum class probability, and severity; it deliberately does not persist raw feature vectors. Since no ground-truth labels are supplied with the live stream, the app does not report live accuracy, precision, recall, F1-score, or a live confusion matrix.
 
 The dashboard does not fabricate a confusion matrix or class-level values if they are absent from the source artifact. If Plotly cannot render the FPR chart, the app falls back to a measured FPR table. NSL-KDD has no timestamp in the 41-feature schema, so uploaded-record plots use record order, not time. See `docs/analytics_dashboard_guide.md`, `docs/live_telemetry_setup.md`, and `FPR_CHART_HOTFIX.md`.
+
+The Windows Endpoint Monitoring tab reads a local prediction file by default at `D:\FUSE AI 201\Sysmon\data\windows_predictions.jsonl`; configure `WINDOWS_PREDICTIONS_PATH` to override it. Run Streamlit on the same Windows computer as the file. The hosted cloud app cannot access a personal Windows filesystem. See `docs/windows_live_dashboard.md` for setup. For preparing compatible, independently labelled external Sysmon traces, see `docs/silrad_dataset_compatibility.md`.
 
 ## 5. Model and implementation
 
