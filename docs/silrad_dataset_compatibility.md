@@ -36,7 +36,7 @@ For a compatible raw CSV member:
 
 The converter requires the source event label mapping documented by SILRAD: `0` -> `Benign` (Goodware), `1` -> `Malicious` (Ransomware). It creates 60-second process windows at a 10-second cadence and preserves the source capture/session ID in `session_id`.
 
-Only Event ID 3 and Event ID 22 contribute features. Process windows are labelled only when all eligible source events for that process in that window agree. If a window contains both labels, the entire window is excluded as ambiguous; no majority vote or feature-based label inference is used. Unknown labels or missing required raw fields stop conversion.
+Only Event ID 3 and Event ID 22 contribute the 19 numerical features. All labelled Sysmon events with the same process identity and timestamps are considered when checking the window label; a process window is labelled only when all source events in that window agree. If a window contains both labels, the entire window is excluded as ambiguous; no majority vote or feature-based label inference is used. Unknown labels or missing required raw fields stop conversion.
 
 The output is private local training data. It is ignored by Git via `.gitignore`.
 
